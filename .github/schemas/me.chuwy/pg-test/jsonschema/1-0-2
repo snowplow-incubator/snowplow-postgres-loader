@@ -1,0 +1,25 @@
+{
+  "self": {
+    "vendor": "me.chuwy",
+    "name": "pg-test",
+    "format": "jsonschema",
+    "version": "1-0-2"
+  },
+  "properties": {
+    "requiredString": { "type": "string" },
+    "requiredUnion": { "type": ["string", "boolean"] },
+    "nested": {
+      "properties": {
+        "a": { "type": "number" },
+        "b": {},
+        "c": { "type": ["integer", "null"] }
+      },
+      "required": ["a"]
+    },
+    "someArray": { "type": "array" },
+    "id": { "type": "string", "format": "uuid" },
+    "someDate": { "type": "string", "format": "date-time" },
+    "bigInt": { "type": "integer", "maximum": 100000000000000 }
+  },
+  "required": ["requiredString", "requiredUnion"]
+}
