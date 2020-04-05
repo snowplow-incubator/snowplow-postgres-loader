@@ -1,0 +1,26 @@
+language: scala
+dist: trusty
+scala:
+  - 2.12.11
+jdk:
+  - oraclejdk8
+services:
+  - docker
+script:
+  - sbt test
+before_install:
+  - bash ./.travis/checkTag.sh $TRAVIS_TAG
+  - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+  - sbt publishLocal
+deploy:
+  provider: script
+  script: ./.travis/deploy.sh $TRAVIS_TAG
+  skip_cleanup: true
+  on:
+    tags: true
+env:
+  global:
+    # DOCKER_USERNAME
+    - secure: encrypted_username
+    # DOCKER_PASSWORD
+    - secure: encrypted_password
