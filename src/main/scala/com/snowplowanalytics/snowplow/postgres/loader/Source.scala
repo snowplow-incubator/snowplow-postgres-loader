@@ -1,4 +1,4 @@
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
 import java.util.Base64
 import java.nio.charset.StandardCharsets

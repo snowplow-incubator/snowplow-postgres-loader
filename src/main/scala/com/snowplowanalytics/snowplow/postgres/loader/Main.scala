@@ -1,15 +1,14 @@
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{ExitCode, IO, IOApp, Resource, Fiber }
 import cats.implicits._
+
 import fs2.aws.kinesis.KinesisConsumerSettings
+
 import software.amazon.awssdk.regions.Region
 
 
 object Main extends IOApp {
-  import cats.effect.{ Resource, Fiber }
-  val f: Fiber[IO, Int] = ???
-  f.join
   def run(args: List[String]): IO[ExitCode] = {
     Options.command.parse(args) match {
       case Right(Options.Config(app, stream, jdbc, username, password)) =>
@@ -23,8 +22,6 @@ object Main extends IOApp {
               .as(ExitCode.Success)
           case Left(error) =>
             IO.delay(System.err.println(error)).as(ExitCode.Error)
-
-
         }
       case Left(help) =>
         IO.delay(System.err.println(help.toString)).as(ExitCode.Error)

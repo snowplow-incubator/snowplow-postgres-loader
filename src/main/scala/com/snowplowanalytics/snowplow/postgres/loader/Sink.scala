@@ -1,4 +1,4 @@
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
 import cats.syntax.functor._
 import doobie._
@@ -18,6 +18,8 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, SchemaList =
 import com.snowplowanalytics.pgloader.Options.JdbcUri
 import com.snowplowanalytics.pgloader.Shredding.ShreddedEntity
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
+import com.snowplowanalytics.snowplow.postgres.loader.Options.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.loader.Shredding.ShreddedEntity
 import io.circe.Json
 
 object Sink {

@@ -11,7 +11,7 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
 
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
 import cats.data.ValidatedNel
 import cats.implicits._

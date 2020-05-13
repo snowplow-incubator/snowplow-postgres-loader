@@ -1,4 +1,4 @@
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -23,7 +23,7 @@ import com.snowplowanalytics.iglu.schemaddl.jsonschema.Pointer.JsonPointer
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, SchemaList => DdlSchemaList}
 import com.snowplowanalytics.iglu.schemaddl.redshift.generators.DdlGenerator
-import com.snowplowanalytics.pgloader.PgTypes.Type
+import PgTypes.Type
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Payload}
 

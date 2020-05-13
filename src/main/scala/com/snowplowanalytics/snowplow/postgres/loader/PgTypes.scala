@@ -1,4 +1,4 @@
-package com.snowplowanalytics.pgloader
+package com.snowplowanalytics.snowplow.postgres.loader
 
 import cats.implicits._
 import java.sql.{Timestamp => JTimestamp}
