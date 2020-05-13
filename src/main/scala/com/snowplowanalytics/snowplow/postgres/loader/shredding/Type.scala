@@ -1,59 +1,43 @@
-package com.snowplowanalytics.snowplow.postgres.loader
+package com.snowplowanalytics.snowplow.postgres.loader.shredding
 
-import cats.implicits._
-import java.sql.{Timestamp => JTimestamp}
-import java.util.UUID
-import java.time.Instant
-
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.Schema
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{Type => SType}
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.MultipleOf
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.StringProperty.{Format, MaxLength, MinLength}
+import cats.instances.int._
+import cats.instances.bigInt._
+import cats.instances.list._
+import cats.syntax.option._
+import cats.syntax.foldable._
+import cats.syntax.eq._
 
 import io.circe.Json
 
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.Schema
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{ Type => SType }
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.MultipleOf
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.StringProperty.{Format, MaxLength, MinLength}
 
-object PgTypes {
-  sealed trait Type {
-    def ddl: String = this match {
-      case Type.Char(size) => s"CHAR($size)"
-      case Type.Varchar(size) => s"VARCHAR($size)"
-      case Type.Uuid => "UUID"
-      case Type.Timestamp => "TIMESTAMP"
-      case Type.Date => "DATE"
-      case Type.Integer => "INTEGER"
-      case Type.Double => "DOUBLE PRECISION"
-      case Type.Bool => "BOOLEAN"
-    }
+sealed trait Type {
+  def ddl: String = this match {
+    case Type.Char(size) => s"CHAR($size)"
+    case Type.Varchar(size) => s"VARCHAR($size)"
+    case Type.Uuid => "UUID"
+    case Type.Timestamp => "TIMESTAMP"
+    case Type.Date => "DATE"
+    case Type.Integer => "INTEGER"
+    case Type.Double => "DOUBLE PRECISION"
+    case Type.Bool => "BOOLEAN"
   }
-  object Type {
-    case class Char(size: Int) extends Type
-    case class Varchar(size: Int) extends Type
-    case object Uuid extends Type
-    case object Timestamp extends Type
-    case object Date extends Type
-    case object Integer extends Type
-    case object Double extends Type
-    case object Bool extends Type
-  }
+}
 
-  sealed trait Value
+object Type {
 
-  object Value {
-    case class Uuid(value: UUID) extends Value
-    case class Char(value: String) extends Value
-    case class Varchar(value: String) extends Value
-    case class Timestamp(value: JTimestamp) extends Value
-    case class Integer(value: Int) extends Value
-    case class Double(value: scala.Double) extends Value
-    case class Bool(value: Boolean) extends Value
+  case class Char(size: Int) extends Type
+  case class Varchar(size: Int) extends Type
+  case object Uuid extends Type
+  case object Timestamp extends Type
+  case object Date extends Type
+  case object Integer extends Type
+  case object Double extends Type
+  case object Bool extends Type
 
-    object Timestamp {
-      def apply(instant: Instant): Timestamp = Timestamp(JTimestamp.from(instant))
-    }
-  }
-
-  case class Column(name: String, dataType: Type, value: Value)
 
   type DataTypeSuggestion = (Schema, String) => Option[Type]
 
@@ -233,3 +217,4 @@ object PgTypes {
       case _ :: tail => somePredicates(instances, tail, quantity)
     }
 }
+

@@ -15,9 +15,14 @@ package com.snowplowanalytics.snowplow.postgres.loader
 
 import cats.data.ValidatedNel
 import cats.implicits._
+
+import com.snowplowanalytics.snowplow.postgres.loader.Config.JdbcUri
+
 import com.monovore.decline._
 
-object Options {
+case class Config(appName: String, stream: String, jdbcUri: JdbcUri, username: String, password: String)
+
+object Config {
   case class JdbcUri(host: String, port: Int, database: String) {
     override def toString =
       s"jdbc:postgresql://$host:$port/$database"
@@ -89,8 +94,6 @@ object Options {
     metavar = "secret",
     help = "Postgres password"
   )
-
-  case class Config(appName: String, stream: String, jdbcUri: JdbcUri, username: String, password: String)
 
   val command = Command("Postgres Loader", "Snowplow Analytics Ltd.")((appName, stream, jdbcUri, username, password).mapN(Config.apply))
 }
