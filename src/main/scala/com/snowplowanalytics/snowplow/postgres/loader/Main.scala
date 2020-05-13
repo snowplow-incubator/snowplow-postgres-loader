@@ -22,7 +22,7 @@ object Main extends IOApp {
             for {
               state <- streaming.PgState.init[IO]
               _ <- source.getEvents[IO](config)
-                .observeEither(source.badSink[IO], source.eventsSink[IO](xa, state, igluClient))
+                .observeEither(sink.badSink[IO], sink.eventsSink[IO](xa, state, igluClient))
                 .compile
                 .drain
             } yield ExitCode.Success

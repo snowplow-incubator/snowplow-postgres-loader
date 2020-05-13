@@ -16,13 +16,18 @@ package com.snowplowanalytics.snowplow.postgres.loader
 import cats.data.ValidatedNel
 import cats.implicits._
 
+import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.postgres.loader.Config.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.loader.generated.ProjectSettings
 
 import com.monovore.decline._
 
 case class Config(appName: String, stream: String, jdbcUri: JdbcUri, username: String, password: String)
 
 object Config {
+
+  val processor = Processor(ProjectSettings.name, ProjectSettings.version)
+
   case class JdbcUri(host: String, port: Int, database: String) {
     override def toString =
       s"jdbc:postgresql://$host:$port/$database"

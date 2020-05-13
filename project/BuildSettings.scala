@@ -28,7 +28,7 @@ object BuildSettings {
   lazy val scalifiedSettings = Seq(
     sourceGenerators in Compile += Def.task {
       val file = (sourceManaged in Compile).value / "settings.scala"
-      IO.write(file, """package com.snowplowanalytics.pgloader.generated
+      IO.write(file, """package com.snowplowanalytics.snowplow.postgres.loader.generated
                        |object ProjectSettings {
                        |  val organization = "%s"
                        |  val name = "%s"

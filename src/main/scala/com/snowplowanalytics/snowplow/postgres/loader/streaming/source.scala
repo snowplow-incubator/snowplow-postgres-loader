@@ -5,28 +5,19 @@ import java.nio.charset.StandardCharsets
 
 import cats.implicits._
 
-import cats.effect.concurrent.Ref
-import cats.effect.{ContextShift, Bracket, Clock, ConcurrentEffect, Sync}
+import cats.effect.{ContextShift, ConcurrentEffect}
 
 import fs2.Stream
 import fs2.aws.kinesis.{CommittableRecord, KinesisConsumerSettings}
 import fs2.aws.kinesis.consumer.readFromKinesisStream
 
-import io.circe.Json
-
-import com.snowplowanalytics.iglu.client.Client
-
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
-import com.snowplowanalytics.snowplow.badrows.{Processor, BadRow, Payload, Failure}
-import doobie.implicits._
-import doobie.util.transactor.Transactor
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
 
-import com.snowplowanalytics.snowplow.postgres.loader.shredding.transform
+import com.snowplowanalytics.snowplow.postgres.loader.Config
 
 object source {
-
-  val processor = Processor("snowplow-postgres-loader", "0.1.0")
 
   def singleEvent[F[_]]: Stream[F, String] =
     Stream
@@ -35,32 +26,12 @@ object source {
 
   def parseString(s: String) =
     Event.parse(s).toEither.leftMap { error =>
-      BadRow.LoaderParsingError(processor, error, Payload.RawPayload(s))
+      BadRow.LoaderParsingError(Config.processor, error, Payload.RawPayload(s))
     }
 
   def getEvents[F[_]: ConcurrentEffect: ContextShift](settings: KinesisConsumerSettings): Stream[F, Either[BadRow, Event]] =
     readFromKinesisStream[F](settings).map(processRecord)
 //    singleEvent[F].map(parseString)
-
-  def badSink[F[_]: Sync](bads: Stream[F, BadRow]): Stream[F, Unit] =
-    bads.evalMap(row => Sync[F].delay(println(row.compact)))
-
-  def eventsSink[F[_]: Sync: Clock](xa: Transactor[F], state: Ref[F, PgState], client: Client[F, Json])
-                                   (events: Stream[F, Event])
-                                   (implicit B: Bracket[F, Throwable]): Stream[F, Unit] =
-    events.evalMap { event =>
-      val result = for {
-        entities <- transform.shredEvent[F](client, event)
-        insert <- sink.insertData(client.resolver, state, entities).leftMap { errors =>
-          BadRow.LoaderIgluError(processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event)): BadRow
-        }
-      } yield insert
-
-      result.value.flatMap {
-        case Right(insert) => insert.transact(xa)
-        case Left(badRow) => ???
-      }
-    }
 
   /** Pasrse Kinesis record into a valid Snowplow `Event` or parsing error `BadRow` */
   def processRecord(record: CommittableRecord): Either[BadRow, Event] = {
@@ -69,12 +40,12 @@ object source {
     } catch {
       case _: IllegalArgumentException =>
         val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
-        BadRow.LoaderParsingError(processor, NotTSV, Payload.RawPayload(payload)).asLeft
+        BadRow.LoaderParsingError(Config.processor, NotTSV, Payload.RawPayload(payload)).asLeft
     }
 
     string.flatMap { s =>
       Event.parse(s).toEither.leftMap { error =>
-        BadRow.LoaderParsingError(processor, error, Payload.RawPayload(s))
+        BadRow.LoaderParsingError(Config.processor, error, Payload.RawPayload(s))
       }
     }
   }

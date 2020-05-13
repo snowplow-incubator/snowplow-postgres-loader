@@ -23,10 +23,9 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.FlatSchema
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, Payload}
 
-import com.snowplowanalytics.snowplow.postgres.loader.streaming.source
+import com.snowplowanalytics.snowplow.postgres.loader.Config
 
 object transform {
-
   val Atomic = SchemaKey("com.snowplowanalytics", "snowplow", "jsonschema", SchemaVer.Full(1,0,0))
 
   /** Transform the whole `Event` (canonical and JSONs) into list of independent entities ready to be inserted */
@@ -189,6 +188,6 @@ object transform {
   }
 
   private def buildBadRow(event: Event)(errors: NonEmptyList[FailureDetails.LoaderIgluError]) =
-    BadRow.LoaderIgluError(source.processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
+    BadRow.LoaderIgluError(Config.processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
 
 }

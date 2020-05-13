@@ -4,24 +4,30 @@ import cats.Monad
 import cats.data.{EitherT, NonEmptyList}
 import cats.implicits._
 
-import cats.effect.{ContextShift, Sync, Async, Clock}
+import cats.effect.{ContextShift, Async, Bracket, Clock, Sync}
 import cats.effect.concurrent.Ref
+
+import fs2.Stream
 
 import doobie._
 import doobie.implicits._
+import doobie.util.transactor.Transactor
+
+import io.circe.Json
 
 import com.snowplowanalytics.iglu.core.SchemaCriterion
 
-import com.snowplowanalytics.iglu.client.Resolver
+import com.snowplowanalytics.iglu.client.{Resolver, Client}
 
 import com.snowplowanalytics.iglu.schemaddl.StringUtils
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{Type => SType}
 import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, SchemaList => DdlSchemaList}
 
-import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.postgres.loader.Config.JdbcUri
-import com.snowplowanalytics.snowplow.postgres.loader.shredding.{Type, Entity}
+import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
+import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Failure, BadRow, Payload}
+import com.snowplowanalytics.snowplow.postgres.loader.Config.{ JdbcUri, processor }
+import com.snowplowanalytics.snowplow.postgres.loader.shredding.{Type, Entity, transform}
 import com.snowplowanalytics.snowplow.postgres.loader.shredding.schema.fetch
 
 object sink {
@@ -53,6 +59,26 @@ object sink {
     def of(error: FailureDetails.LoaderIgluError): NonEmptyList[FailureDetails.LoaderIgluError] =
       NonEmptyList.of(error)
   }
+
+  def badSink[F[_]: Sync](bads: Stream[F, BadRow]): Stream[F, Unit] =
+    bads.evalMap(row => Sync[F].delay(println(row.compact)))
+
+  def eventsSink[F[_]: Sync: Clock](xa: Transactor[F], state: Ref[F, PgState], client: Client[F, Json])
+                                   (events: Stream[F, Event])
+                                   (implicit B: Bracket[F, Throwable]): Stream[F, Unit] =
+    events.evalMap { event =>
+      val result = for {
+        entities <- transform.shredEvent[F](client, event)
+        insert <- insertData(client.resolver, state, entities).leftMap { errors =>
+          BadRow.LoaderIgluError(processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event)): BadRow
+        }
+      } yield insert
+
+      result.value.flatMap {
+        case Right(insert) => insert.transact(xa)
+        case Left(badRow) => ???
+      }
+    }
 
   /**
    * Prepare tables for incoming data if necessary and insert the data
