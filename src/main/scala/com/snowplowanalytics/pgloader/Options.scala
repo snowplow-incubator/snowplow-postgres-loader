@@ -18,9 +18,9 @@ import cats.implicits._
 import com.monovore.decline._
 
 object Options {
-  case class JdbcUri(host: String, port: Int, username: String, database: String) {
+  case class JdbcUri(host: String, port: Int, database: String) {
     override def toString =
-      s"jdbc:postgresql://$username@$host:$port/$database"
+      s"jdbc:postgresql://$host:$port/$database"
   }
 
   object JdbcUri {
@@ -28,23 +28,18 @@ object Options {
       val scheme = "jdbc:postgresql://"
       if (string.startsWith(scheme)) {
         val clean = string.drop(scheme.length)
-        clean.split("@", -1).toList match {
-          case username :: rest if rest.nonEmpty =>
-            rest.mkString("@").split("/", -1).toList match {
-              case host :: dbname :: Nil =>
-                host.split(":").toList match {
-                  case name :: IntString(port) :: Nil =>
-                    JdbcUri(name, port, username, dbname).asRight
-                  case name :: Nil =>
-                    JdbcUri(name, 5432, username, dbname).asRight
-                  case _ :: invalidPort :: Nil =>
-                    s"JDBC port $invalidPort is not an integer".asLeft
-                }
-              case _ =>
-                s"JDBC URI must contain host and database name separated by slash, got $string".asLeft
+        clean.split("/", -1).toList match {
+          case host :: dbname :: Nil =>
+            host.split(":").toList match {
+              case name :: IntString(port) :: Nil =>
+                JdbcUri(name, port, dbname).asRight
+              case name :: Nil =>
+                JdbcUri(name, 5432, dbname).asRight
+              case _ :: invalidPort :: Nil =>
+                s"JDBC port $invalidPort is not an integer".asLeft
             }
           case _ =>
-            s"JDBC URI must contain username, got $string".asLeft
+            s"JDBC URI must contain host and database name separated by slash, got $string".asLeft
         }
       } else s"JDBC URI must start with $scheme, got $string".asLeft
     }
@@ -82,13 +77,20 @@ object Options {
     help = "Postgres sink"
   )
 
+  val username = Opts.option[String](
+    long = "username",
+    metavar = "name",
+    help = "Postgres username"
+  )
+
+
   val password = Opts.option[String](
     long = "password",
     metavar = "secret",
     help = "Postgres password"
   )
 
-  case class Config(appName: String, stream: String, jdbcUri: JdbcUri, password: String)
+  case class Config(appName: String, stream: String, jdbcUri: JdbcUri, username: String, password: String)
 
-  val command = Command("Postgres Loader", "Snowplow Analytics Ltd.")((appName, stream, jdbcUri, password).mapN(Config.apply))
+  val command = Command("Postgres Loader", "Snowplow Analytics Ltd.")((appName, stream, jdbcUri, username, password).mapN(Config.apply))
 }

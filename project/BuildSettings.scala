@@ -15,22 +15,13 @@
 import sbt._
 import Keys._
 
-// Docker
-import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport.dockerBaseImage
-import com.typesafe.sbt.packager.docker._
-
-// sbt-assembly
-/* Uncomment if using sbt-assembly. */
-//import sbtassembly._
-//import sbtassembly.AssemblyKeys._
-
 object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    name := "pgloader",
+    name := "snowplow-postgres-loader",
     version := "0.1.0",
     scalaVersion := "2.12.11",
-    description := "Scala Application"
+    description := "Loading Snowplow enriched data into PostgreSQL in real-time"
   )
 
   // Make package (build) metadata available within source code.
@@ -82,22 +73,9 @@ object BuildSettings {
     )
   )
 
-  lazy val helperSettings = Seq[Setting[_]](
-    initialCommands := "import com.snowplowanalytics.pgloader._"
-  )
-
   lazy val resolverSettings = Seq[Setting[_]](
     resolvers ++= Seq(
       "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
     )
   )
-
-  /* Uncomment if using sbt-assembly. */
-  /*lazy val assemblySettings = Seq(
-    assemblyJarName in assembly := { s"${moduleName.value}-${version.value}.jar" },
-    assemblyMergeStrategy in assembly := {
-      case PathList("META-INF", xs @ _*) => MergeStrategy.discard
-      case x => MergeStrategy.first
-    }
-  )*/
 }

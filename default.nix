@@ -7,7 +7,7 @@ let
     pyyaml
     requests
   ];
-  python-with-deps = pkgs.python35.withPackages python-deps;
+  python-with-deps = pkgs.python37.withPackages python-deps;
 in
 pkgs.stdenv.mkDerivation rec {
   name = "pg-loader";
