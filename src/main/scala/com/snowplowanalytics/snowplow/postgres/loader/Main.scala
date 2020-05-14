@@ -9,17 +9,17 @@ import com.monovore.decline.Opts
 import com.snowplowanalytics.iglu.client.{CirceValidator, Client, Resolver}
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry.EmbeddedRegistry
 import com.snowplowanalytics.iglu.core.circe.implicits._
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer, SelfDescribingData}
 import com.snowplowanalytics.snowplow.postgres.loader.Options._
 import com.snowplowanalytics.snowplow.postgres.loader.generated.ProjectSettings
 import com.snowplowanalytics.snowplow.postgres.loader.streaming.{PgState, sink, source}
 import doobie.util.transactor.Transactor
 import fs2.aws.kinesis.KinesisConsumerSettings
+import io.circe.syntax._
 import io.circe.parser._
 import io.circe.generic.auto._
 import io.circe.Json
-import org.dhallj.core.Expr
-import org.dhallj.codec.syntax._
+import org.dhallj.circe._
 import org.dhallj.syntax._
 import software.amazon.awssdk.regions.Region
 
@@ -31,9 +31,9 @@ object Main
 
   override def main: Opts[IO[ExitCode]] =
     (config, resolver, dhall).mapN {
-      case (dhallCP, _, true)               => parseDhallConfig[IO](dhallCP).flatMap(program[IO].tupled)
-      case (sdjCP, Some(resolverCP), false) => parseSelfDescJsonConfig[IO](sdjCP, resolverCP).flatMap(program[IO].tupled)
-      case _                                => exitWithError("Invalid input parameters combination")
+      case (dhallCP, _, true)        => parseDhallConfig[IO](dhallCP).flatMap(r => program[IO](r._1, r._2))
+      case (sdjCP, Some(rCP), false) => parseSelfDescJsonConfig[IO](sdjCP, rCP).flatMap(r => program[IO](r._1, r._2))
+      case _                         => exitWithError[IO]("Invalid input parameters combination")
     }
 
   def program[F[_]: ConcurrentEffect: ContextShift: Clock](conf: Config, igluClient: Client[F, Json]): F[ExitCode] =
@@ -57,16 +57,23 @@ object Main
         .drain
     } yield ExitCode.Success
 
-  def parseDhallConfig[F[_]: Sync](configPath: String): F[(Config, Client[F, Json])] =
+  def parseDhallConfig[F[_]: Sync](configPath: String): F[(Config, Client[F, Json])] = {
+    val mkResolveConfig: Json => SelfDescribingData[Json] =
+      SelfDescribingData[Json](
+        SchemaKey("com.snowplowanalytics.iglu", "resolver-config", "jsonschema", SchemaVer.Full(1, 0, 0)),
+        _
+      )
+
     (for {
-      confString <- EitherT.liftF(readFileToString(configPath))
-      conf       <- EitherT.fromEither[F](confString.parseExpr.leftWiden[Throwable])
-      resolver   <- EitherT(Resolver.parse[F](Json.Null)) // TODO:
+      confString   <- EitherT.liftF(readFileToString(configPath))
+      dhallConf    <- EitherT.fromEither[F](confString.parseExpr.flatMap(_.resolve).map(_.normalize))
+      jsonConf     <- EitherT.fromOption[F](Converter(dhallConf), new Throwable("Invalid Dhall config"))
+      conf         <- EitherT.fromEither[F](jsonConf.as[Config]).leftWiden[Throwable]
+      resolverConf <- EitherT.fromEither[F](jsonConf.hcursor.get[Json]("igluResolver")).leftWiden[Throwable]
+      resolver     <- EitherT(Resolver.parse[F](mkResolveConfig(resolverConf).asJson)).leftWiden[Throwable]
       igluClient = Client[F, Json](resolver.copy(repos = EmbeddedRegistry :: resolver.repos), CirceValidator)
-      resolvedConf <- EitherT.fromEither[F](conf.resolve.leftWiden[Throwable])
-      // TODO:
-      // parsedConf <- EitherT.fromEither[F](resolvedConf.as[])
-    } yield (Config("", "", "", 5432, "", "", ""), igluClient)).value.rethrow
+    } yield (conf, igluClient)).value.rethrow
+  }
 
   def parseSelfDescJsonConfig[F[_]: Sync: Clock](
     configPath: String,
@@ -74,14 +81,14 @@ object Main
   ): F[(Config, Client[F, Json])] =
     (for {
       resolverConfString <- EitherT.liftF(readFileToString(resolverConfigPath))
-      resolverConfJson   <- EitherT.fromEither[F](parse(resolverConfString).leftWiden[Throwable])
+      resolverConfJson   <- EitherT.fromEither[F](parse(resolverConfString)).leftWiden[Throwable]
       resolver           <- EitherT(Resolver.parse[F](resolverConfJson))
       igluClient = Client[F, Json](resolver.copy(repos = EmbeddedRegistry :: resolver.repos), CirceValidator)
       confString <- EitherT.liftF(readFileToString(configPath))
-      confJson   <- EitherT.fromEither[F](parse(confString).leftWiden[Throwable])
+      confJson   <- EitherT.fromEither[F](parse(confString)).leftWiden[Throwable]
       confSdd    <- EitherT.fromEither[F](SelfDescribingData.parse(confJson).leftMap(e => new Throwable(e.code)))
       _          <- igluClient.check(confSdd).leftMap(e => new Throwable(e.getMessage))
-      conf       <- EitherT.fromEither[F](confSdd.data.as[Config].leftWiden[Throwable])
+      conf       <- EitherT.fromEither[F](confSdd.data.as[Config]).leftWiden[Throwable]
     } yield (conf, igluClient)).value.rethrow
 
   def readFileToString[F[_]: Sync](path: String): F[String] =

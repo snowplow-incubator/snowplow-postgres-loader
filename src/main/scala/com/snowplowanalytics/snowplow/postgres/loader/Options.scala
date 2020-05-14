@@ -17,7 +17,7 @@ import com.monovore.decline._
 
 object Options {
 
-  val config: Opts[String] = Opts.option(
+  val config: Opts[String] = Opts.option[String](
     long = "config",
     metavar = "path",
     help = "Path to configuration, either Self Describing JSON (default) or Dhall (via --dhall flag)"
