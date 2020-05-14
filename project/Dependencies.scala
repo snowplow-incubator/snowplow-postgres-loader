@@ -27,8 +27,8 @@ object Dependencies {
     val doobie       = "0.9.0"
     val fs2          = "2.3.0"
 
-    val analyticsSdk = "1.0.0"
-    val badRows      = "0.1.0"
+    val analyticsSdk = "1.0.0-M1"
+    val badRows      = "2.0.0-M1"
     val schemaDdl    = "0.10.0"
 
     // Testing

@@ -76,7 +76,8 @@ object sink {
 
       result.value.flatMap {
         case Right(insert) => insert.transact(xa)
-        case Left(badRow) => ???
+        case Left(badRow) =>
+          Sync[F].delay(println(s"Bad row \n${badRow.selfDescribingData.data.spaces2}"))
       }
     }
 
@@ -94,7 +95,7 @@ object sink {
       val tableMutation = EitherT.liftF[F, IgluErrors, PgState](state.get).flatMap { state =>
         state.check(modelGroup, entity.origin) match {
           case TableState.Missing =>
-            EitherT(resolver.listSchemas(entity.origin.vendor, entity.origin.name, entity.origin.version.model.some))
+            EitherT(resolver.listSchemas(entity.origin.vendor, entity.origin.name, entity.origin.version.model))
               .leftMap(error => IgluErrors.of(FailureDetails.LoaderIgluError.SchemaListNotFound(criterion, error)))
               .flatMap(list => DdlSchemaList.fromSchemaList(list, fetch[F](resolver)).map(createTable[F]).leftMap(IgluErrors.of))
               .map(_.update(LogHandler.jdkLogHandler).run.void)

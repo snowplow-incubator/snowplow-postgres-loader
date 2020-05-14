@@ -100,5 +100,5 @@ object Config {
     help = "Postgres password"
   )
 
-  val command = Command("Postgres Loader", "Snowplow Analytics Ltd.")((appName, stream, jdbcUri, username, password).mapN(Config.apply))
+  val command = Command(ProjectSettings.name, ProjectSettings.version)((appName, stream, jdbcUri, username, password).mapN(Config.apply))
 }

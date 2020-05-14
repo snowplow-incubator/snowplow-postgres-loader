@@ -16,6 +16,7 @@ sealed trait Value {
     case Value.Varchar(value) => fr"$value"
     case Value.Timestamp(value) => fr"$value"
     case Value.Integer(value) => fr"$value"
+    case Value.BigInt(value) => fr"$value"
     case Value.Double(value) => fr"$value"
     case Value.Bool(value) => fr"$value"
   }
@@ -27,6 +28,7 @@ object Value {
   case class Varchar(value: String) extends Value
   case class Timestamp(value: JTimestamp) extends Value
   case class Integer(value: Int) extends Value
+  case class BigInt(value: Long) extends Value
   case class Double(value: scala.Double) extends Value
   case class Bool(value: Boolean) extends Value
 

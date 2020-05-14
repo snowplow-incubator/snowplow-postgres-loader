@@ -26,7 +26,7 @@ import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, 
 import com.snowplowanalytics.snowplow.postgres.loader.Config
 
 object transform {
-  val Atomic = SchemaKey("com.snowplowanalytics", "snowplow", "jsonschema", SchemaVer.Full(1,0,0))
+  val Atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1,0,0))
 
   /** Transform the whole `Event` (canonical and JSONs) into list of independent entities ready to be inserted */
   def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], event: Event): EitherT[F, BadRow, List[Entity]] = {
@@ -34,7 +34,7 @@ object transform {
     val wholeEvent = entities.parTraverse(shredJson(client)).value.map { either =>
       (either, shredAtomic(Map())(event)).mapN { (ents, atomic) => atomic :: ents }
     }
-    EitherT(wholeEvent).leftMap(buildBadRow(event))
+    EitherT(wholeEvent).leftMap[BadRow](buildBadRow(event))
   }
 
   /** Transform JSON into [[Entity]] */
@@ -121,7 +121,7 @@ object transform {
   }
 
   def cast(json: Option[Json], dataType: Type): Either[String, Option[Value]] = {
-    val error = s"Invalid type".asLeft
+    val error = s"Invalid type ${dataType.ddl} for value $json".asLeft
     json match {
       case Some(j) =>
         dataType match {
@@ -150,7 +150,10 @@ object transform {
           case Type.Integer =>
             j.asNumber.flatMap(_.toInt) match {
               case Some(int) => Value.Integer(int).some.asRight
-              case None => error
+              case None => j.asNumber.flatMap(_.toLong) match {
+                case Some(long) => Value.BigInt(long).some.asRight
+                case None => error
+              }
             }
           case Type.Double =>
             j.asNumber.map(_.toDouble) match {
@@ -168,6 +171,7 @@ object transform {
               case None => error
             }
         }
+      case None => none.asRight
     }
   }
 

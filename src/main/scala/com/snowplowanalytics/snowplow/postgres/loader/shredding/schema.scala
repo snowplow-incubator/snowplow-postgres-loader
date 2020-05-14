@@ -37,7 +37,7 @@ object schema {
                                                     (vendor: String, name: String, model: Int): EitherT[F, FailureDetails.LoaderIgluError, Properties] = {
 
     val criterion = SchemaCriterion(vendor, name, "jsonschema", Some(model), None, None)
-    val schemaList = resolver.listSchemas(vendor, name, model.some)
+    val schemaList = resolver.listSchemas(vendor, name, model)
     for {
       schemaList <- EitherT[F, ClientError.ResolutionError, SchemaList](schemaList).leftMap(error => FailureDetails.LoaderIgluError.SchemaListNotFound(criterion, error))
       ordered <- DdlSchemaList.fromSchemaList(schemaList, fetch(resolver))
