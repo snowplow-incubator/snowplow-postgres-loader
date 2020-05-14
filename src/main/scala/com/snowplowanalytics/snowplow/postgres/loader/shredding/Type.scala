@@ -10,8 +10,8 @@ import cats.syntax.eq._
 import io.circe.Json
 
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.Schema
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{ Type => SType }
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.MultipleOf
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{Type => SType}
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.{MultipleOf, Maximum}
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.StringProperty.{Format, MaxLength, MinLength}
 
 sealed trait Type {
@@ -22,6 +22,7 @@ sealed trait Type {
     case Type.Timestamp => "TIMESTAMP"
     case Type.Date => "DATE"
     case Type.Integer => "INTEGER"
+    case Type.BigInt => "BIGINT"
     case Type.Double => "DOUBLE PRECISION"
     case Type.Bool => "BOOLEAN"
   }
@@ -35,6 +36,7 @@ object Type {
   case object Timestamp extends Type
   case object Date extends Type
   case object Integer extends Type
+  case object BigInt extends Type
   case object Double extends Type
   case object Bool extends Type
 
@@ -95,7 +97,10 @@ object Type {
   val integerSuggestion: DataTypeSuggestion = (properties, _) => {
     (properties.`type`, properties.maximum, properties.enum, properties.multipleOf) match {
       case (Some(types), Some(maximum), _, _) if types.possiblyWithNull(SType.Integer) =>
-        Type.Integer.some
+        if (isBigInt(maximum)) Type.BigInt.some
+        else Type.Integer.some
+      case (Some(types), None, _, _) if types.possiblyWithNull(SType.Integer) =>
+        Type.BigInt.some
       // Contains only enum
       case (types, _, Some(enum), _) if types.isEmpty || types.get.possiblyWithNull(SType.Integer) =>
         Type.Integer.some
@@ -201,6 +206,12 @@ object Type {
     val nonNullEnum = excludeNull(enum)
     somePredicates(nonNullEnum, List(isNumeric _, isNonNumeric _, isBoolean _), 2)
   }
+
+  def isBigInt(long: Maximum): Boolean =
+    long match {
+      case Maximum.IntegerMaximum(bigInt) => bigInt > 2147483647L
+      case _ => false
+    }
 
   /**
    * Check at least some `quantity` of `predicates` are true on `instances`

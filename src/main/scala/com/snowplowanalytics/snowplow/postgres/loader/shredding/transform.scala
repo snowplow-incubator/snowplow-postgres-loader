@@ -59,7 +59,10 @@ object transform {
         } }
         .map { cols =>
           val columns = cols.collect { case Some(c) => c }
-          val tableName = StringUtils.getTableName(SchemaMap(data.schema))
+          val tableName = data.schema match {
+            case Atomic => "events"
+            case other => StringUtils.getTableName(SchemaMap(other))
+          }
           Entity(tableName, data.schema, columns)
         }
     }
@@ -121,7 +124,7 @@ object transform {
   }
 
   def cast(json: Option[Json], dataType: Type): Either[String, Option[Value]] = {
-    val error = s"Invalid type ${dataType.ddl} for value $json".asLeft
+    val error = s"Invalid type ${dataType.ddl} for value $json".asLeft[Option[Value]]
     json match {
       case Some(j) =>
         dataType match {
@@ -150,10 +153,12 @@ object transform {
           case Type.Integer =>
             j.asNumber.flatMap(_.toInt) match {
               case Some(int) => Value.Integer(int).some.asRight
-              case None => j.asNumber.flatMap(_.toLong) match {
-                case Some(long) => Value.BigInt(long).some.asRight
-                case None => error
-              }
+              case None => error
+            }
+          case Type.BigInt =>
+            j.asNumber.flatMap(_.toLong) match {
+              case Some(long) => Value.BigInt(long).some.asRight
+              case None => error
             }
           case Type.Double =>
             j.asNumber.map(_.toDouble) match {

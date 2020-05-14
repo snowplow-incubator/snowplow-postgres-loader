@@ -97,7 +97,7 @@ object sink {
           case TableState.Missing =>
             EitherT(resolver.listSchemas(entity.origin.vendor, entity.origin.name, entity.origin.version.model))
               .leftMap(error => IgluErrors.of(FailureDetails.LoaderIgluError.SchemaListNotFound(criterion, error)))
-              .flatMap(list => DdlSchemaList.fromSchemaList(list, fetch[F](resolver)).map(createTable[F]).leftMap(IgluErrors.of))
+              .flatMap(list => DdlSchemaList.fromSchemaList(list, fetch[F](resolver)).map(createTable(entity)).leftMap(IgluErrors.of))
               .map(_.update(LogHandler.jdkLogHandler).run.void)
           case TableState.Match =>
             EitherT.rightT[F, IgluErrors](Monad[ConnectionIO].unit)
@@ -115,9 +115,8 @@ object sink {
 
   def migrateTable[F[_]: Sync](schemaList: DdlSchemaList): F[Unit] = Sync[F].unit
 
-  def createTable[F[_]](schemaList: DdlSchemaList): Fragment = {
+  def createTable(entity: Entity)(schemaList: DdlSchemaList): Fragment = {
     val subschemas = FlatSchema.extractProperties(schemaList)
-    val tableName = StringUtils.getTableName(schemaList.latest)
 
     val columns = for {
       (pointer, schema) <- subschemas.filterNot { case (p, _) => p == Pointer.Root }
@@ -126,7 +125,7 @@ object sink {
       nullable = if (canBeNull(schema)) "NULL" else "NOT NULL"
     } yield s""""$columnName" ${dataType.ddl} $nullable"""
 
-    Fragment.const(s"CREATE TABLE $tableName (\n${columns.mkString(",\n")}\n)")
+    Fragment.const(s"CREATE TABLE ${entity.tableName} (\n${columns.mkString(",\n")}\n)")
   }
 
   private def canBeNull(schema: Schema): Boolean =
