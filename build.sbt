@@ -19,16 +19,19 @@ lazy val root = project
   .settings(BuildSettings.resolverSettings)
   .settings(
     libraryDependencies ++= Seq(
-
       Dependencies.logger,
       Dependencies.catsEffect,
       Dependencies.decline,
+      Dependencies.declineEffect,
       Dependencies.circe,
       Dependencies.circeGeneric,
       Dependencies.circeParser,
       Dependencies.doobie,
       Dependencies.doobiePg,
       Dependencies.fs2Aws,
+      Dependencies.dhall,
+      Dependencies.dhallCodec,
+      Dependencies.dhallCirce,
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,

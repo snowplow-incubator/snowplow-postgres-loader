@@ -4,7 +4,7 @@ import cats.Monad
 import cats.data.{EitherT, NonEmptyList}
 import cats.implicits._
 
-import cats.effect.{ContextShift, Async, Bracket, Clock, Sync}
+import cats.effect.{Async, Bracket, Clock, ContextShift, Sync}
 import cats.effect.concurrent.Ref
 
 import fs2.Stream
@@ -26,7 +26,7 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, SchemaList =
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, Failure, BadRow, Payload}
-import com.snowplowanalytics.snowplow.postgres.loader.Config.{ JdbcUri, processor }
+import com.snowplowanalytics.snowplow.postgres.loader.Config.processor
 import com.snowplowanalytics.snowplow.postgres.loader.shredding.{Type, Entity, transform}
 import com.snowplowanalytics.snowplow.postgres.loader.shredding.schema.fetch
 
@@ -34,9 +34,18 @@ object sink {
 
   type Insert = ConnectionIO[Unit]
 
-  def getTransactor[F[_]: Async: ContextShift](jdbcUri: JdbcUri, username: String, password: String): Transactor[F] =
+  def getTransactor[F[_]: Async: ContextShift](
+    host: String,
+    port: Int,
+    database: String,
+    username: String,
+    password: String
+  ): Transactor[F] =
     Transactor.fromDriverManager[F](
-      "org.postgresql.Driver", jdbcUri.toString, username, password
+      "org.postgresql.Driver",
+      s"jdbc:postgresql://$host:$port/$database",
+      username,
+      password
     )
 
   def insertStatement(row: Entity): Insert = {
