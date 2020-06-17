@@ -23,9 +23,11 @@ docker run \
     snowplow-docker-registry.bintray.io/snowplow/iglu-server:0.6.1 \
     --config /iglu/server.conf
 
+echo "Waiting for Iglu Server..."
+sleep 5
+
 wget $IGLUCTL_URI
 unzip -j $IGLUCTL_ZIP
-
 
 ./igluctl static push \
     $SCHEMAS_PATH \
