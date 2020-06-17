@@ -22,6 +22,8 @@ lazy val root = project
     resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(
       Dependencies.logger,
+      Dependencies.postgres,
+      Dependencies.commons,
       Dependencies.catsEffect,
       Dependencies.decline,
       Dependencies.circe,

@@ -21,6 +21,7 @@ object Dependencies {
     // Java
     val slf4j        = "1.7.30"
     val postgres     = "42.2.14"
+    val commons      = "1.13"
 
     // Scala third-party
     val decline      = "1.2.0"
@@ -42,7 +43,10 @@ object Dependencies {
 
   // Java
   val logger        = "org.slf4j"      % "slf4j-simple"           % V.slf4j
+
+  // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
+  val commons       = "commons-codec"  % "commons-codec"          % V.commons
 
   // Scala third-party
   val decline       = "com.monovore"  %% "decline"                % V.decline
