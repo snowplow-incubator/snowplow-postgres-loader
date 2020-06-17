@@ -2,11 +2,16 @@
 
 ## Quickstart
 
-Assuming `git` and `sbt` are installed:
+Assuming [Docker][docker] is installed:
+
+1. Add own `config.json` (specify connection and source details)
+2. Add own `resolver.json` (all schemas must be on [Iglu Server][iglu-server])
+3. Run the Docker image:
 
 ```bash
-$ git clone https://github.com/snowplow-incubator/pgloader.git
-$ cd pgloader
+$ docker run --rm -v $PWD/config:/snowplow/config snowplow-postgres-loader \
+    --resolver /snowplow/config/resolver.json \
+    --config /snowplow/config/config.json
 ```
 
 ## Copyright and License
@@ -21,6 +26,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+[docker]: https://www.docker.com/
+[iglu-server]: https://github.com/snowplow-incubator/iglu-server
 
 [travis]: https://travis-ci.org/snowplow-incubator/pgloader
 [travis-image]: https://travis-ci.org/snowplow-incubator/pgloader.png?branch=master
