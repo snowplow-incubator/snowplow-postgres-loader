@@ -20,6 +20,7 @@ object Dependencies {
   object V {
     // Java
     val slf4j        = "1.7.30"
+    val postgres     = "42.2.14"
 
     // Scala third-party
     val decline      = "1.2.0"
@@ -41,6 +42,7 @@ object Dependencies {
 
   // Java
   val logger        = "org.slf4j"      % "slf4j-simple"           % V.slf4j
+  val postgres      = "org.postgresql" % "postgresql"             % V.postgres
 
   // Scala third-party
   val decline       = "com.monovore"  %% "decline"                % V.decline
