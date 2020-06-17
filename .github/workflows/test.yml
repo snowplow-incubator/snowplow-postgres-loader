@@ -18,11 +18,6 @@ jobs:
           POSTGRES_DB: snowplow
           POSTGRES_PORT: 5432
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
-      iglu:
-        image: docker://snowplow-docker-registry.bintray.io/snowplow/iglu-server:0.6.1
-        options: --config /iglu/server.conf
-        ports:
-          - 8080:8080
 
     steps:
     - uses: actions/checkout@v2
