@@ -16,18 +16,16 @@ POSTGRES_PASSWORD=mysecretpassword
 
 git clone https://github.com/snowplow/iglu-central.git $IGLUCENTRAL_PATH
 
-docker run \
-    -p 8080:8080 \
-    -v $GITHUB_WORKSPACE/.github:/iglu \
-    --rm -d \
-    snowplow-docker-registry.bintray.io/snowplow/iglu-server:0.6.0 \
-    --config /iglu/server.conf
-
+#docker run \
+#    -p 8080:8080 \
+#    -v $GITHUB_WORKSPACE/.github:/iglu \
+#    --rm -d \
+#    snowplow-docker-registry.bintray.io/snowplow/iglu-server:0.6.0 \
+#    --config /iglu/server.conf
+#
 wget $IGLUCTL_URI
 unzip -j $IGLUCTL_ZIP
 
-echo "Waiting for Iglu Server..."
-sleep 6
 
 ./igluctl static push \
     $SCHEMAS_PATH \
