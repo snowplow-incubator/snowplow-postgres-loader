@@ -28,7 +28,7 @@ object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     name := "snowplow-postgres-loader",
-    version := "0.1.0",
+    version := "0.1.0-rc1",
     scalaVersion := "2.13.2",
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
     parallelExecution in Test := false

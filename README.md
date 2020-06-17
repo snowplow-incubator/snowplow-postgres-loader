@@ -1,10 +1,15 @@
-# pg-loader
+[![License][license-image]][license]
+[![Coverage Status][coveralls-image]][coveralls]
+[![Test][test-image]][test]
+[![Release][release-image]][release]
+
+# Snowplow Postgres Loader
 
 ## Quickstart
 
 Assuming [Docker][docker] is installed:
 
-1. Add own `config.json` (specify connection and source details)
+1. Add own `config.json` (specify connection and stream details)
 2. Add own `resolver.json` (all schemas must be on [Iglu Server][iglu-server])
 3. Run the Docker image:
 
@@ -30,11 +35,14 @@ limitations under the License.
 [docker]: https://www.docker.com/
 [iglu-server]: https://github.com/snowplow-incubator/iglu-server
 
-[travis]: https://travis-ci.org/snowplow-incubator/pgloader
-[travis-image]: https://travis-ci.org/snowplow-incubator/pgloader.png?branch=master
-
-[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
-[license]: http://www.apache.org/licenses/LICENSE-2.0
-
 [release-image]: http://img.shields.io/badge/release-0.1.0-blue.svg?style=flat
-[releases]: https://github.com/snowplow/pgloader/releases
+[release]: https://github.com/snowplow/pgloader/releases
+
+[test]: https://github.com/snowplow/enrich/actions?query=workflow%3ATest
+[test-image]: https://github.com/snowplow/enrich/workflows/Test/badge.svg
+
+[license]: http://www.apache.org/licenses/LICENSE-2.0
+[license-image]: http://img.shields.io/badge/license-Apache--2-blue.svg?style=flat
+
+[coveralls]: https://coveralls.io/github/snowplow/enrich?branch=master
+[coveralls-image]: https://coveralls.io/repos/github/snowplow/enrich/badge.svg?branch=master
