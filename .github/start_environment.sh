@@ -7,7 +7,7 @@ if [ -z ${GITHUB_WORKSPACE+x} ]; then
     exit 1
 fi
 
-IGLUCTL_ZIP="igluctl_0.6.0.zip"
+IGLUCTL_ZIP="igluctl_0.7.2_rc1.zip"
 IGLUCTL_URI="http://dl.bintray.com/snowplow/snowplow-generic/$IGLUCTL_ZIP"
 IGLUCENTRAL_PATH="$GITHUB_WORKSPACE/iglu-central"
 SCHEMAS_PATH="$IGLUCENTRAL_PATH/schemas/" 
@@ -40,5 +40,3 @@ unzip -j $IGLUCTL_ZIP
     http://localhost:8080/ \
     48b267d7-cd2b-4f22-bae4-0f002008b5ad \
     --public
-
-PGPASSWORD=$POSTGRES_PASSWORD psql -h localhost -U postgres -c "CREATE DATABASE snowplow"
