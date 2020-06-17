@@ -17,6 +17,7 @@ lazy val root = project
   .settings(BuildSettings.projectSettings)
   .settings(BuildSettings.dockerSettings)
   .settings(BuildSettings.buildInfoSettings)
+  .settings(BuildSettings.scoverageSettings)
   .settings(
     resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(

@@ -22,6 +22,8 @@ import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 
+import scoverage.ScoverageKeys._
+
 object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
@@ -48,4 +50,11 @@ object BuildSettings {
     defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
   )
 
+  lazy val scoverageSettings = Seq(
+    coverageMinimum := 50,
+    coverageFailOnMinimum := false,
+    (test in Test) := {
+      (coverageReport dependsOn (test in Test)).value
+    }
+  )
 }

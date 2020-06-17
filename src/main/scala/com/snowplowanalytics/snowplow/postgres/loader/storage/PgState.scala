@@ -66,6 +66,7 @@ case class PgState(tables: Map[ModelGroup, SchemaList]) {
     }
   }
 
+  /** Add a whole `SchemaList` to the state (replace if it exists) */
   def put(list: SchemaList): PgState = {
     val entity = list.latest.schemaKey
     val modelGroup = (entity.vendor, entity.name, entity.version.model)
