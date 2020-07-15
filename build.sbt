@@ -11,14 +11,18 @@
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
 
-lazy val root = project
-  .in(file("."))
-  .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
+lazy val root = project.in(file("."))
+  .aggregate(common, loader)
+
+lazy val common = project
+  .in(file("modules/common"))
+  .settings(name := "snowplow-postgres")
+  .enablePlugins(BuildInfoPlugin)
   .settings(BuildSettings.projectSettings)
-  .settings(BuildSettings.dockerSettings)
   .settings(BuildSettings.buildInfoSettings)
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.addExampleConfToTestCp)
+  .settings(BuildSettings.mavenSettings)
   .settings(
     resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(
@@ -44,5 +48,13 @@ lazy val root = project
       Dependencies.specs2
     )
   )
+
+lazy val loader = project
+  .in(file("modules/loader"))
+  .settings(name := "snowplow-postgres-loader")
+  .settings(BuildSettings.projectSettings)
+  .settings(BuildSettings.dockerSettings)
+  .dependsOn(common)
+  .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")

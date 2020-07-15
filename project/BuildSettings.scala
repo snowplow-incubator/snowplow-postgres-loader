@@ -18,6 +18,9 @@ import Keys._
 import sbtbuildinfo.BuildInfoKey
 import sbtbuildinfo.BuildInfoKeys._
 
+import bintray.BintrayPlugin._
+import bintray.BintrayKeys._
+
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
 import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
@@ -27,16 +30,15 @@ import scoverage.ScoverageKeys._
 object BuildSettings {
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    name := "snowplow-postgres-loader",
-    version := "0.1.0-rc2",
-    scalaVersion := "2.13.2",
+    version := "0.1.0-rc3",
+    scalaVersion := "2.13.3",
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
     parallelExecution in Test := false
   )
 
   lazy val buildInfoSettings = Seq(
     buildInfoKeys := Seq[BuildInfoKey](name, version),
-    buildInfoPackage := "com.snowplowanalytics.snowplow.postgres.loader.generated"
+    buildInfoPackage := "com.snowplowanalytics.snowplow.postgres.generated"
   )
 
   /** Docker image settings */
@@ -49,6 +51,28 @@ object BuildSettings {
 
     daemonUserUid in Docker := None,
     defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
+  )
+
+  lazy val mavenSettings = bintraySettings ++ Seq(
+    publishMavenStyle := true,
+    publishArtifact := true,
+    publishArtifact in Test := false,
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
+    bintrayOrganization := Some("snowplow"),
+    bintrayRepository := "snowplow-maven",
+    pomIncludeRepository := { _ => false },
+    homepage := Some(url("http://snowplowanalytics.com")),
+    scmInfo := Some(ScmInfo(url("https://github.com/snowplow/snowplow"),
+      "scm:git@github.com:snowplow/snowplow.git")),
+    pomExtra := (
+      <developers>
+        <developer>
+          <name>Snowplow Analytics Ltd</name>
+          <email>support@snowplowanalytics.com</email>
+          <organization>Snowplow Analytics Ltd</organization>
+          <organizationUrl>http://snowplowanalytics.com</organizationUrl>
+        </developer>
+      </developers>)
   )
 
   lazy val scoverageSettings = Seq(
