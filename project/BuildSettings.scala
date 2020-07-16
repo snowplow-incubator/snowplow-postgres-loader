@@ -33,6 +33,7 @@ object BuildSettings {
     version := "0.1.0-rc3",
     scalaVersion := "2.13.3",
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
     parallelExecution in Test := false
   )
 
@@ -57,7 +58,6 @@ object BuildSettings {
     publishMavenStyle := true,
     publishArtifact := true,
     publishArtifact in Test := false,
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
     bintrayOrganization := Some("snowplow"),
     bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },
@@ -86,7 +86,7 @@ object BuildSettings {
 
   lazy val addExampleConfToTestCp = Seq(
     unmanagedClasspath in Test += {
-      baseDirectory.value / "config"
+      baseDirectory.value.getParentFile.getParentFile / "config"
     }
   )
 }

@@ -19,15 +19,15 @@ import doobie.free.connection.ConnectionIO
 import doobie.implicits._
 import doobie.util.log.LogHandler
 
-import com.snowplowanalytics.iglu.core.SchemaMap
+import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaMap}
 
+import com.snowplowanalytics.iglu.schemaddl.StringUtils
 import com.snowplowanalytics.iglu.schemaddl.StringUtils.getTableName
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, Migration, SchemaList}
 
-import com.snowplowanalytics.snowplow.postgres.storage.definitions.metaColumns
-import com.snowplowanalytics.snowplow.postgres.shredding.{Type, Entity, transform, schema}
-
+import com.snowplowanalytics.snowplow.postgres.shredding.transform.Atomic
+import com.snowplowanalytics.snowplow.postgres.shredding.{Type, transform, schema}
 
 object sql {
 
@@ -41,7 +41,7 @@ object sql {
    * @param meta whether meta columns should be prepended
    * @return pure SQL expression with `CREATE TABLE` statement
    */
-  def createTable(schema: String, entity: Entity, schemaList: SchemaList, meta: Boolean): Fragment = {
+  def createTable(schema: String, entity: SchemaKey, schemaList: SchemaList, meta: Boolean): Fragment = {
     val subschemas = FlatSchema.extractProperties(schemaList)
 
     // Columns derived from schema (no metadata)
@@ -50,8 +50,13 @@ object sql {
         definitions.columnToString(columnName, dataType, nullability)
     }
 
-    val columns = (if (meta) metaColumns.map((definitions.columnToString _).tupled) else Nil) ++ entityColumns
-    val table = s"$schema.${entity.tableName}"
+    val tableName = entity match {
+      case Atomic => "events"
+      case other => StringUtils.getTableName(SchemaMap(other))
+    }
+
+    val columns = (if (meta) definitions.metaColumns.map((definitions.columnToString _).tupled) else Nil) ++ entityColumns
+    val table = s"$schema.$tableName"
 
     Fragment.const(s"CREATE TABLE $table (\n${columns.mkString(",\n")}\n)")
   }
@@ -66,11 +71,11 @@ object sql {
   }
 
 
-  def migrateTable(schema: String, entity: Entity, schemaList: SchemaList) =
+  def migrateTable(schema: String, entity: SchemaKey, schemaList: SchemaList) =
     schemaList match {
       case s: SchemaList.Full =>
         val migrationList = s.extractSegments.map(Migration.fromSegment)
-        migrationList.find(_.from == entity.origin.version) match {
+        migrationList.find(_.from == entity.version) match {
           case Some(migration) =>
             val schemaMap     = SchemaMap(migration.vendor, migration.name, "jsonschema", migration.to)
             val tableName     = getTableName(schemaMap)                            // e.g. com_acme_event_1

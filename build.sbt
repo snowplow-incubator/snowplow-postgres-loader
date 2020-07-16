@@ -12,6 +12,7 @@
  */
 
 lazy val root = project.in(file("."))
+  .settings(BuildSettings.projectSettings)
   .aggregate(common, loader)
 
 lazy val common = project
@@ -45,7 +46,9 @@ lazy val common = project
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,
-      Dependencies.specs2
+      Dependencies.specs2,
+      Dependencies.specs2Check,
+      Dependencies.scalaCheck
     )
   )
 

@@ -71,7 +71,8 @@ object Dependencies {
   val schemaDdl    = "com.snowplowanalytics" %% "schema-ddl"                   % V.schemaDdl
 
   // Testing
-  val specs2       = "org.specs2"     %% "specs2-core" % V.specs2     % Test
-  val scalaCheck   = "org.scalacheck" %% "scalacheck"  % V.scalaCheck % Test
+  val specs2       = "org.specs2"     %% "specs2-core"       % V.specs2     % Test
+  val specs2Check  = "org.specs2"     %% "specs2-scalacheck" % V.specs2     % Test
+  val scalaCheck   = "org.scalacheck" %% "scalacheck"        % V.scalaCheck % Test
 
 }

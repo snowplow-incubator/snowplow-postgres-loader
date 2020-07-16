@@ -14,7 +14,6 @@ package com.snowplowanalytics.snowplow.postgres.streaming
 
 import java.util.UUID
 
-import cats.effect.concurrent.Ref
 import cats.effect.IO
 
 import fs2.Stream
@@ -29,22 +28,11 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
 import com.snowplowanalytics.snowplow.postgres.Database
-import com.snowplowanalytics.snowplow.postgres.storage.PgState
+import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
 import com.snowplowanalytics.snowplow.postgres.streaming.source.{Data, BadData}
 
 class sinkspec extends Database {
   import Database._
-
-  "insertData" should {
-    "return Right with no entities (nothing to insert)" >> {
-      val action = for {
-        state <- Ref.of[IO, PgState](PgState(Map()))
-        result <- sink.insertData[IO](igluClient.resolver, logger, Schema, state, List.empty, true).value
-      } yield result
-
-      action.unsafeRunSync() must beRight
-    }
-  }
 
   "goodSink" should {
     "sink a single good event" >> {
@@ -52,20 +40,21 @@ class sinkspec extends Database {
       val event = Event.parse(line).getOrElse(throw new RuntimeException("Event is invalid"))
       val stream = Stream.emit[IO, Data](Data.Snowplow(event))
 
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, true)
+
       val action = for {
-        is <- PgState.init[IO](xa, logger, igluClient.resolver, Schema)
-        (issues, state) = is
+        state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(xa, logger, Schema, state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
         eventIds <- query.action
         uaParserCtxs <- count("com_snowplowanalytics_snowplow_ua_parser_context_1").action
-      } yield (issues, eventIds, uaParserCtxs)
+      } yield (eventIds, uaParserCtxs)
 
       val result = action.value.unsafeRunSync()
       val ExpectedEventId = UUID.fromString("11cdec7b-4cbd-4aa4-a4c9-3874ab9663d4")
       result must beRight.like {
-        case (Nil, List(ExpectedEventId), 1) => ok
-        case (issues, ids, ctxs) => ko(s"Unexpected result. Issues: $issues; Event ids: $ids; Contexts: $ctxs")
+        case (List(ExpectedEventId), 1) => ok
+        case (ids, ctxs) => ko(s"Unexpected result. Event ids: $ids; Contexts: $ctxs")
       }
     }
 
@@ -74,19 +63,20 @@ class sinkspec extends Database {
       val json = SelfDescribingData.parse(row).getOrElse(throw new RuntimeException("Invalid SelfDescribingData"))
       val stream = Stream.emit[IO, Data](Data.SelfDescribing(json))
 
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, false)
+
       val action = for {
-        is <- PgState.init[IO](xa, logger, igluClient.resolver, Schema)
-        (issues, state) = is
+        state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(xa, logger, Schema, state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
         eventIds <- query.action
         rows <- count("com_getvero_bounced_1").action
-      } yield (issues, eventIds, rows)
+      } yield (eventIds, rows)
 
       val result = action.value.unsafeRunSync()
       result must beRight.like {
-        case (Nil, Nil, 1) => ok
-        case (issues, ids, ctxs) => ko(s"Unexpected result. Issues: ${issues.mkString(", ")}; Event ids: ${ids.mkString(", ")}; Contexts: $ctxs")
+        case (Nil, 1) => ok
+        case (ids, ctxs) => ko(s"Unexpected result. Event ids: ${ids.mkString(", ")}; Contexts: $ctxs")
       }
     }
 
@@ -111,19 +101,20 @@ class sinkspec extends Database {
         ColumnInfo("big_int",         None, true,   "bigint",                       None),
       )
 
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, false)
+
       val action = for {
-        is <- PgState.init[IO](xa, logger, igluClient.resolver, Schema)
-        (issues, state) = is
+        state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(xa, logger, Schema, state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
         rows <- count("me_chuwy_pg_test_1").action
         table <- describeTable("me_chuwy_pg_test_1").action
-      } yield (issues, rows, table)
+      } yield (rows, table)
 
       val result = action.value.unsafeRunSync()
       result must beRight.like {
-        case (Nil, 3, ExpectedColumnInfo) => ok
-        case (issues, ctxs, cols) => ko(s"Unexpected result. Issues: $issues; Number of rows: $ctxs; Columns ${cols}")
+        case (3, ExpectedColumnInfo) => ok
+        case (ctxs, cols) => ko(s"Unexpected result. Number of rows: $ctxs; Columns ${cols}")
       }
     }
   }

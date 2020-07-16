@@ -12,29 +12,25 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
-import cats.Monad
-import cats.data.EitherT
 import cats.implicits._
 
 import cats.effect.{Sync, Clock, Concurrent}
-import cats.effect.concurrent.Ref
 
 import fs2.Pipe
 import fs2.concurrent.Queue
 
 import doobie._
 import doobie.implicits._
-import doobie.util.transactor.Transactor
 
 import io.circe.Json
 
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
-import com.snowplowanalytics.iglu.client.{Resolver, Client}
+import com.snowplowanalytics.iglu.client.Client
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, Payload}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
+import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
 import com.snowplowanalytics.snowplow.postgres.config.Cli.processor
-import com.snowplowanalytics.snowplow.postgres.storage.{PgState, ddl}
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, transform}
 import com.snowplowanalytics.snowplow.postgres.streaming.source.{Data, BadData}
 
@@ -47,20 +43,14 @@ object sink {
    * and checking the state of the DB itself.
    * Events that could not be transformed (due Iglu errors or DB unavailability) are sent back
    * to `badQueue`
-   * @param xa DB transactor, responsible for connection pooling
-   * @param logger impure SQL statement logger
-   * @param schema database schema (e.g. `public` or `atomic`)
    * @param state mutable Loader state
    * @param badQueue queue where all unsucessful actions can unload its results
    * @param client Iglu Client
    */
-  def goodSink[F[_]: Concurrent: Clock](xa: Transactor[F],
-                                        logger: LogHandler,
-                                        schema: String,
-                                        state: Ref[F, PgState],
-                                        badQueue: Queue[F, BadData],
-                                        client: Client[F, Json]): Pipe[F, Data, Unit] =
-    _.parEvalMapUnordered(32)(sinkPayload(xa, logger, schema, state, badQueue, client))
+  def goodSink[F[_]: Concurrent: Clock: DB](state: State[F],
+                                            badQueue: Queue[F, BadData],
+                                            client: Client[F, Json]): Pipe[F, Data, Unit] =
+    _.parEvalMapUnordered(32)(sinkPayload(state, badQueue, client))
 
   /** Sink bad data coming directly into the `Pipe` and data coming from `badQueue` */
   def badSink[F[_]: Concurrent](badQueue: Queue[F, BadData]): Pipe[F, BadData, Unit] =
@@ -70,67 +60,40 @@ object sink {
     }
 
   /** Implementation for [[goodSink]] */
-  def sinkPayload[F[_]: Sync: Clock](xa: Transactor[F],
-                                     logger: LogHandler,
-                                     schema: String,
-                                     state: Ref[F, PgState],
-                                     badQueue: Queue[F, BadData],
-                                     client: Client[F, Json])(payload: Data) = {
+  def sinkPayload[F[_]: Sync: Clock: DB](state: State[F],
+                                         badQueue: Queue[F, BadData],
+                                         client: Client[F, Json])(payload: Data): F[Unit] = {
     val result = for {
       entities <- payload match {
-        case Data.Snowplow(event) => transform.shredEvent[F](client, event).leftMap(bad => BadData.BadEnriched(bad))
-        case Data.SelfDescribing(json) => transform.shredJson(client)(json).map(entity => List(entity)).leftMap(errors => BadData.BadJson(json.normalize.noSpaces, errors.toString))
+        case Data.Snowplow(event) =>
+          transform
+            .shredEvent[F](client, event)
+            .leftMap(bad => BadData.BadEnriched(bad))
+        case Data.SelfDescribing(json) =>
+          transform
+            .shredJson(client)(json)
+            .map(entity => List(entity))
+            .leftMap(errors => BadData.BadJson(json.normalize.noSpaces, errors.toString))
       }
-      insert <- insertData(client.resolver, logger, schema, state, entities, payload.snowplow).leftMap { errors =>
-        payload match {
+      insert = DB.process(entities, state).attempt.flatMap {
+        case Right(_) => Sync[F].unit
+        case Left(error) => payload match {
           case Data.Snowplow(event) =>
-            val badRow = BadRow.LoaderIgluError(processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
-            BadData.BadEnriched(badRow)
+            val badRow = BadRow.LoaderRuntimeError(processor, error.getMessage, Payload.LoaderPayload(event))
+            val pgBadRow = BadData.BadEnriched(badRow)
+            badQueue.enqueue1(pgBadRow)
           case Data.SelfDescribing(json) =>
-            BadData.BadJson(json.normalize.noSpaces, s"Cannot insert: $errors")
+            val pgBadRow = BadData.BadJson(json.normalize.noSpaces, s"Cannot insert: ${error.getMessage}")
+            badQueue.enqueue1(pgBadRow)
 
         }
       }
     } yield insert
 
     result.value.flatMap {
-      case Right(insert) => insert.transact[F](xa).attempt.flatMap {
-        case Right(_) => Sync[F].unit
-        case Left(e) => badQueue.enqueue1(BadData.BadJson(payload.toString, e.getMessage))
-      }
-      case Left(badRow) => badQueue.enqueue1(badRow)
+      case Right(action) => action
+      case Left(error) => badQueue.enqueue1(error)
     }
-  }
-
-  /**
-   * Prepare tables for incoming data if necessary and insert the data
-   * Tables will be updated/created if info is missing in `state`
-   * @param resolver resolver to fetch missing schemas
-   * @param state current state of the Postgres schema
-   * @param event all shredded enitites from a single event, ready to be inserted
-   */
-  def insertData[F[_]: Sync: Clock](resolver: Resolver[F],
-                                    logger: LogHandler,
-                                    schema: String,
-                                    state: Ref[F, PgState],
-                                    event: List[Entity],
-                                    meta: Boolean): EitherT[F, IgluErrors, Insert] = {
-    val inserts = event.parTraverse { entity =>
-      val tableMutation = EitherT.liftF[F, IgluErrors, PgState](state.get).flatMap { pgState =>
-        pgState.check(entity.origin) match {
-          case PgState.TableState.Match =>
-            EitherT.rightT[F, IgluErrors](Monad[ConnectionIO].unit)
-          case PgState.TableState.Missing =>
-            ddl.createTable[F](resolver, state, logger, schema, entity, meta)
-          case PgState.TableState.Outdated =>
-            ddl.alterTable[F](resolver, state, logger, schema, entity)
-        }
-      }
-
-      tableMutation.map(mut => mut *> insertStatement(logger, schema, entity))
-    }
-
-    inserts.map(_.sequence_)
   }
 
   /**
@@ -150,5 +113,6 @@ object sink {
 
     fr"""INSERT INTO $table ($columns) VALUES ($values)""".update(logger).run.void
   }
+
 
 }

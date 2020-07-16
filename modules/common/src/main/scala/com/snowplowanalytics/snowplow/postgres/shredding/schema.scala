@@ -46,17 +46,20 @@ object schema {
     FailureDetails.LoaderIgluError.InvalidSchema(key, s"JSON ${json.noSpaces} cannot be parsed as JSON Schema"): FailureDetails.LoaderIgluError
 
 
-  def getOrdered[F[_]: Monad: RegistryLookup: Clock](resolver: Resolver[F])
-                                                    (vendor: String, name: String, model: Int): EitherT[F, FailureDetails.LoaderIgluError, Properties] = {
+  def getSchemaList[F[_]: Monad: RegistryLookup: Clock](resolver: Resolver[F])
+                                                       (vendor: String, name: String, model: Int): EitherT[F, FailureDetails.LoaderIgluError, DdlSchemaList] = {
 
     val criterion = SchemaCriterion(vendor, name, "jsonschema", Some(model), None, None)
     val schemaList = resolver.listSchemas(vendor, name, model)
     for {
       schemaList <- EitherT[F, ClientError.ResolutionError, SchemaList](schemaList).leftMap(error => FailureDetails.LoaderIgluError.SchemaListNotFound(criterion, error))
       ordered <- DdlSchemaList.fromSchemaList(schemaList, fetch(resolver))
-      properties = FlatSchema.extractProperties(ordered)
-    } yield properties
+    } yield ordered
   }
+
+  def getOrdered[F[_]: Monad: RegistryLookup: Clock](resolver: Resolver[F])
+                                                    (vendor: String, name: String, model: Int): EitherT[F, FailureDetails.LoaderIgluError, Properties] =
+    getSchemaList[F](resolver)(vendor, name, model).map(FlatSchema.extractProperties)
 
   def canBeNull(schema: Schema): Boolean =
     schema.enum.exists(_.value.exists(_.isNull)) || (schema.`type` match {

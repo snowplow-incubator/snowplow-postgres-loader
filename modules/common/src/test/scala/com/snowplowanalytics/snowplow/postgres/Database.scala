@@ -5,11 +5,11 @@ import java.util.UUID
 
 import cats.data.EitherT
 import cats.implicits._
+
 import cats.effect.{ContextShift, IO, Clock}
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterEach
-
 import doobie._
 import doobie.implicits._
 import doobie.postgres.implicits._
@@ -23,9 +23,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{HttpConne
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
-
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
-import com.snowplowanalytics.snowplow.postgres.storage.utils
 
 trait Database extends Specification with BeforeAfterEach {
   import Database._
@@ -33,7 +31,7 @@ trait Database extends Specification with BeforeAfterEach {
   implicit val ioClock: Clock[IO] = Clock.create[IO]
 
   def before =
-    (dropAll *> utils.prepare[IO](Schema, xa, logger)).unsafeRunSync()
+    (dropAll *> storage.utils.prepare[IO](Schema, xa, logger)).unsafeRunSync()
 
   def after =
     dropAll.unsafeRunSync()

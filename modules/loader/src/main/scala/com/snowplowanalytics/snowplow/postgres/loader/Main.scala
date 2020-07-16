@@ -16,6 +16,7 @@ import cats.effect.{ExitCode, IO, IOApp}
 
 import doobie.util.log.LogHandler
 
+import com.snowplowanalytics.snowplow.postgres.api.DB
 import com.snowplowanalytics.snowplow.postgres.config.Cli
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 import com.snowplowanalytics.snowplow.postgres.resources
@@ -31,12 +32,14 @@ object Main extends IOApp {
           case (blocker, xa, state, badQueue) =>
             source.getSource[IO](blocker, postgres.purpose, postgres.source) match {
               case Right(dataStream) =>
+                val meta = postgres.purpose.snowplow
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, postgres.schema, meta)
                 for {
                   _ <- postgres.purpose match {
                     case Purpose.Enriched => utils.prepare[IO](postgres.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  goodSink = sink.goodSink[IO](xa, logger, postgres.schema, state, badQueue, iglu)
+                  goodSink = sink.goodSink[IO](state, badQueue, iglu)
                   badSink = sink.badSink[IO](badQueue)
                   s = dataStream.observeEither(badSink, goodSink)
 

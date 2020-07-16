@@ -29,6 +29,9 @@ jobs:
       run: $GITHUB_WORKSPACE/.github/start_environment.sh
     - name: Run tests
       run: sbt clean coverage test
+    - name: Aggregate coverage data
+      if: ${{ always() }}
+      run: sbt coverageAggregate
     - name: Submit coveralls data
       if: ${{ always() }}
       run: sbt coverageReport coveralls
@@ -50,6 +53,8 @@ jobs:
     - name: Docker login
       run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       env:
+        BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
+        BINTRAY_PASS: ${{ secrets.BINTRAY_PASS }}
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - name: Build and publish Docker image
@@ -72,5 +77,7 @@ jobs:
       env:
         SONA_USER: snowplow
         SONA_PASS: ${{ secrets.SONA_PASS }}
+        BINTRAY_USER: ${{ secrets.BINTRAY_USER }}
+        BINTRAY_PASS: ${{ secrets.BINTRAY_PASS }}
         BINTRAY_SNOWPLOW_MAVEN_USER: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_USER }}
         BINTRAY_SNOWPLOW_MAVEN_API_KEY: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_API_KEY }}

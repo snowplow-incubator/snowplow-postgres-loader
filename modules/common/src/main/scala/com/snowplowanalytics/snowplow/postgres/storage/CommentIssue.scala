@@ -16,7 +16,7 @@ import cats.{Eq, Show}
 
 import com.snowplowanalytics.iglu.core.ParseError
 
-/** Error with table comment, preventing from [[PgState]] initialisation */
+/** Error with table comment, preventing from `PgState` initialisation */
 sealed trait CommentIssue extends Product with Serializable
 
 object CommentIssue {
