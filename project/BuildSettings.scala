@@ -28,10 +28,14 @@ import com.typesafe.sbt.packager.docker.DockerPlugin.autoImport._
 import scoverage.ScoverageKeys._
 
 object BuildSettings {
+  val scala212 = "2.12.11"
+  val scala213 = "2.13.3"
+
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
     version := "0.1.0-rc3",
-    scalaVersion := "2.13.3",
+    scalaVersion := scala213,
+    crossScalaVersions := Seq(scala212, scala213),
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
     parallelExecution in Test := false

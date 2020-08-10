@@ -140,8 +140,7 @@ object source {
     }
 
   def pubsubErrorHandler[F[_]: Sync](message: PubsubMessage, error: Throwable, ack: F[Unit], nack: F[Unit]): F[Unit] = {
-    val _ = error
-    val _ = nack
+    val _ = (error, nack)
     Sync[F].delay(println(s"Couldn't handle ${message.getData.toStringUtf8}")) *> ack
   }
 
