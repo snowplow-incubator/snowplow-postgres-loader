@@ -47,7 +47,7 @@ object Database {
   val logger: LogHandler = LogHandler.nop
   implicit val CS: ContextShift[IO] = IO.contextShift(concurrent.ExecutionContext.global)
 
-  val jdbcUri = JdbcUri("localhost", 5432, "snowplow")
+  val jdbcUri = JdbcUri("localhost", 5432, "snowplow", "allow")
   val registry = Http(Config("localhost registry", 1, Nil), HttpConnection(URI.create("http://localhost:8080/api/"), None))
   val igluClient = Client[IO, Json](Resolver(List(Registry.IgluCentral, registry), None), CirceValidator)
   val xa: Transactor[IO] = resources.getTransactorDefault[IO](jdbcUri, "postgres", "mysecretpassword")
