@@ -41,7 +41,7 @@ case class LoaderConfig(name: String,
                         schema: String,
                         purpose: Purpose) {
   def getJdbc: JdbcUri =
-    JdbcUri(host, port, database)
+    JdbcUri(host, port, database, sslMode.toLowerCase().replace('_', '-'))
 }
 
 object LoaderConfig {
@@ -120,9 +120,9 @@ object LoaderConfig {
       deriveConfiguredDecoder[Source]
   }
 
-  case class JdbcUri(host: String, port: Int, database: String) {
+  case class JdbcUri(host: String, port: Int, database: String, sslMode: String) {
     override def toString =
-      s"jdbc:postgresql://$host:$port/$database"
+      s"jdbc:postgresql://$host:$port/$database?sslmode=$sslMode"
   }
 
   implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =
