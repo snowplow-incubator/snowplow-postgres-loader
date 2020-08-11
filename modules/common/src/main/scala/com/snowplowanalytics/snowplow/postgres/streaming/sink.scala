@@ -12,12 +12,12 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
+import cats.data.EitherT
 import cats.implicits._
 
 import cats.effect.{Sync, Clock, Concurrent}
 
 import fs2.Pipe
-import fs2.concurrent.Queue
 
 import doobie._
 import doobie.implicits._
@@ -40,31 +40,31 @@ object sink {
   /**
    * Sink good events into Postgres. During sinking, payloads go through all transformation steps
    * and checking the state of the DB itself.
-   * Events that could not be transformed (due Iglu errors or DB unavailability) are sent back
-   * to `badQueue`
+   * Events that could not be transformed (due Iglu errors or DB unavailability) are emitted from
+   * the pipe
    * @param state mutable Loader state
-   * @param badQueue queue where all unsucessful actions can unload its results
    * @param client Iglu Client
    * @param processor The actor processing these events
    */
   def goodSink[F[_]: Concurrent: Clock: DB](state: State[F],
-                                            badQueue: Queue[F, BadData],
                                             client: Client[F, Json],
-                                            processor: Processor): Pipe[F, Data, Unit] =
-    _.parEvalMapUnordered(32)(sinkPayload(state, badQueue, client, processor))
+                                            processor: Processor): Pipe[F, Data, BadData] =
+    _.parEvalMapUnordered(32)(sinkPayload(state, client, processor))
+     .collect {
+       case Left(badData) => badData
+     }
 
-  /** Sink bad data coming directly into the `Pipe` and data coming from `badQueue` */
-  def badSink[F[_]: Concurrent](badQueue: Queue[F, BadData]): Pipe[F, BadData, Unit] =
-    _.merge(badQueue.dequeue).evalMap {
+  /** Sink bad data coming directly into the `Pipe` */
+  def badSink[F[_]: Concurrent]: Pipe[F, BadData, Unit] =
+    _.evalMap {
       case BadData.BadEnriched(row) => Sync[F].delay(println(row.compact))
       case BadData.BadJson(payload, error) => Sync[F].delay(println(s"Cannot parse $payload. $error"))
     }
 
   /** Implementation for [[goodSink]] */
   def sinkPayload[F[_]: Sync: Clock: DB](state: State[F],
-                                         badQueue: Queue[F, BadData],
                                          client: Client[F, Json],
-                                         processor: Processor)(payload: Data): F[Unit] = {
+                                         processor: Processor)(payload: Data): F[Either[BadData, Unit]] = {
     val result = for {
       entities <- payload match {
         case Data.Snowplow(event) =>
@@ -77,25 +77,18 @@ object sink {
             .map(entity => List(entity))
             .leftMap(errors => BadData.BadJson(json.normalize.noSpaces, errors.toString))
       }
-      insert = DB.process(entities, state).attempt.flatMap {
-        case Right(_) => Sync[F].unit
-        case Left(error) => payload match {
+      insert <- EitherT(DB.process(entities, state).attempt).leftMap {
+        case error => payload match {
           case Data.Snowplow(event) =>
             val badRow = BadRow.LoaderRuntimeError(processor, error.getMessage, Payload.LoaderPayload(event))
-            val pgBadRow = BadData.BadEnriched(badRow)
-            badQueue.enqueue1(pgBadRow)
+            BadData.BadEnriched(badRow)
           case Data.SelfDescribing(json) =>
-            val pgBadRow = BadData.BadJson(json.normalize.noSpaces, s"Cannot insert: ${error.getMessage}")
-            badQueue.enqueue1(pgBadRow)
-
+            BadData.BadJson(json.normalize.noSpaces, s"Cannot insert: ${error.getMessage}")
         }
       }
     } yield insert
 
-    result.value.flatMap {
-      case Right(action) => action
-      case Left(error) => badQueue.enqueue1(error)
-    }
+    result.value
   }
 
   /**
