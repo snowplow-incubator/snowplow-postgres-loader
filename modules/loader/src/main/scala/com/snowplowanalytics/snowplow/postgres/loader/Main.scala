@@ -16,30 +16,35 @@ import cats.effect.{ExitCode, IO, IOApp}
 
 import doobie.util.log.LogHandler
 
+import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.postgres.api.DB
 import com.snowplowanalytics.snowplow.postgres.config.Cli
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
+import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 import com.snowplowanalytics.snowplow.postgres.resources
 import com.snowplowanalytics.snowplow.postgres.storage.utils
 import com.snowplowanalytics.snowplow.postgres.streaming.{sink, source}
 
 object Main extends IOApp {
+
+  val processor = Processor(BuildInfo.name, BuildInfo.version)
+
   def run(args: List[String]): IO[ExitCode] =
     Cli.parse[IO](args).value.flatMap {
-      case Right(Cli(postgres, iglu, debug)) =>
+      case Right(Cli(appConfig, iglu, debug)) =>
         val logger = if (debug) LogHandler.jdkLogHandler else LogHandler.nop
-        resources.initialize[IO](postgres, logger, iglu).use {
+        resources.initialize[IO](appConfig.getLoaderConfig, logger, iglu).use {
           case (blocker, xa, state, badQueue) =>
-            source.getSource[IO](blocker, postgres.purpose, postgres.source) match {
+            source.getSource[IO](blocker, appConfig.purpose, appConfig.source) match {
               case Right(dataStream) =>
-                val meta = postgres.purpose.snowplow
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, postgres.schema, meta)
+                val meta = appConfig.purpose.snowplow
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, appConfig.schema, meta)
                 for {
-                  _ <- postgres.purpose match {
-                    case Purpose.Enriched => utils.prepare[IO](postgres.schema, xa, logger)
+                  _ <- appConfig.purpose match {
+                    case Purpose.Enriched => utils.prepare[IO](appConfig.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  goodSink = sink.goodSink[IO](state, badQueue, iglu)
+                  goodSink = sink.goodSink[IO](state, badQueue, iglu, processor)
                   badSink = sink.badSink[IO](badQueue)
                   s = dataStream.observeEither(badSink, goodSink)
 

@@ -31,7 +31,7 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.postgres.api.State
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
-import com.snowplowanalytics.snowplow.postgres.streaming.source.BadData
+import com.snowplowanalytics.snowplow.postgres.streaming.data.BadData
 
 object resources {
 

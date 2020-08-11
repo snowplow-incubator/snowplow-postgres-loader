@@ -34,15 +34,14 @@ import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.migrations.FlatSchema
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, Payload}
+import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, Payload, Processor}
 import Entity.Column
-import com.snowplowanalytics.snowplow.postgres.config.Cli
 
 object transform {
   val Atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1,0,0))
 
   /** Transform the whole `Event` (canonical and JSONs) into list of independent entities ready to be inserted */
-  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], event: Event): EitherT[F, BadRow, List[Entity]] = {
+  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], processor: Processor, event: Event): EitherT[F, BadRow, List[Entity]] = {
     val entities = event.contexts.data ++ event.derived_contexts.data ++ event.unstruct_event.data.toList
     val wholeEvent = entities
       .parTraverse(shredJson(client))
@@ -52,7 +51,7 @@ object transform {
           (shreddedEntities, atomic) => atomic :: shreddedEntities.map(addMetadata(event.event_id, event.collector_tstamp))
         }
       }
-    EitherT(wholeEvent).leftMap[BadRow](buildBadRow(event))
+    EitherT(wholeEvent).leftMap[BadRow](buildBadRow(processor, event))
   }
 
   def addMetadata(eventId: UUID, tstamp: Instant)(entity: Entity): Entity = {
@@ -282,7 +281,7 @@ object transform {
       (columnName, dataType, value)
     }
 
-  private def buildBadRow(event: Event)(errors: NonEmptyList[FailureDetails.LoaderIgluError]) =
-    BadRow.LoaderIgluError(Cli.processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
+  private def buildBadRow(processor: Processor, event: Event)(errors: NonEmptyList[FailureDetails.LoaderIgluError]) =
+    BadRow.LoaderIgluError(processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
 
 }
