@@ -22,8 +22,6 @@ import doobie.util.ExecutionContexts
 import doobie.util.log.LogHandler
 import doobie.util.transactor.Transactor
 
-import fs2.concurrent.Queue
-
 import io.circe.Json
 
 import com.snowplowanalytics.iglu.client.Client
@@ -31,7 +29,6 @@ import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.snowplow.postgres.api.State
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
-import com.snowplowanalytics.snowplow.postgres.streaming.data.BadData
 
 object resources {
 
@@ -41,7 +38,6 @@ object resources {
                                                         iglu: Client[F, Json]) =
     for {
       blocker <- Blocker[F]
-      badQueue <- Resource.liftF(Queue.bounded[F, BadData](128))
       xa <- resources.getTransactor[F](postgres.getJdbc, postgres.username, postgres.password, blocker)
       keysF = for {
         ci <- storage.query.getComments(postgres.schema, logger).transact(xa).map(_.separate)
@@ -57,7 +53,7 @@ object resources {
           Sync[F].pure(state)
       }
       state <- Resource.liftF(initState)
-    } yield (blocker, xa, state, badQueue)
+    } yield (blocker, xa, state)
 
   /** Get a HikariCP transactor */
   def getTransactor[F[_]: Async: ContextShift](jdbcUri: JdbcUri, user: String, password: String, be: Blocker): Resource[F, HikariTransactor[F]] =

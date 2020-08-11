@@ -34,7 +34,7 @@ object Main extends IOApp {
       case Right(Cli(appConfig, iglu, debug)) =>
         val logger = if (debug) LogHandler.jdkLogHandler else LogHandler.nop
         resources.initialize[IO](appConfig.getLoaderConfig, logger, iglu).use {
-          case (blocker, xa, state, badQueue) =>
+          case (blocker, xa, state) =>
             source.getSource[IO](blocker, appConfig.purpose, appConfig.source) match {
               case Right(dataStream) =>
                 val meta = appConfig.purpose.snowplow
@@ -44,9 +44,9 @@ object Main extends IOApp {
                     case Purpose.Enriched => utils.prepare[IO](appConfig.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  goodSink = sink.goodSink[IO](state, badQueue, iglu, processor)
-                  badSink = sink.badSink[IO](badQueue)
-                  s = dataStream.observeEither(badSink, goodSink)
+                  goodSink = sink.goodSink[IO](state, iglu, processor)
+                  badSink = sink.badSink[IO]
+                  s = dataStream.observeEither(badSink, goodSink.andThen(_.through(badSink)))
 
                   _ <- s.compile.drain
                 } yield ExitCode.Success
