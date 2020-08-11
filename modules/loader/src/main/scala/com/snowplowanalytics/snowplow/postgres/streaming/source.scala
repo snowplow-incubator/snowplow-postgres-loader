@@ -32,8 +32,9 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
-import com.snowplowanalytics.snowplow.postgres.config.{LoaderConfig, Cli}
+import com.snowplowanalytics.snowplow.postgres.config.{AppConfig, Cli}
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
+import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
 
 import com.google.pubsub.v1.PubsubMessage
 import com.permutive.pubsub.consumer.Model.{Subscription, ProjectId}
@@ -50,17 +51,17 @@ object source {
    * @return either error or stream of parsed payloads
    */
   def getSource[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker,
-                                                      purpose: LoaderConfig.Purpose,
-                                                      config: LoaderConfig.Source) =
+                                                      purpose: Purpose,
+                                                      config: AppConfig.Source) =
     config match {
-      case LoaderConfig.Source.Kinesis(appName, streamName, region, position) =>
+      case AppConfig.Source.Kinesis(appName, streamName, region, position) =>
         KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap) match {
           case Right(settings) =>
             readFromKinesisStream[F](settings).evalMap(record => record.checkpoint.as(parseRecord(purpose, record))).asRight
           case Left(error) =>
             error.asLeft
         }
-      case LoaderConfig.Source.PubSub(projectId, subscriptionId) =>
+      case AppConfig.Source.PubSub(projectId, subscriptionId) =>
         implicit val decoder: MessageDecoder[Either[BadData, Data]] = pubsubDataDecoder(purpose)
         val project = ProjectId(projectId)
         val subscription = Subscription(subscriptionId)
@@ -108,28 +109,6 @@ object source {
       .leftMap(_.show)
       .flatMap(json => SelfDescribingData.parse[Json](json).leftMap(_.message(json.noSpaces)))
       .leftMap(error => BadData.BadJson(s, error))
-
-  /** Kind of data flowing through the Loader */
-  sealed trait Data extends Product with Serializable {
-    def snowplow: Boolean = this match {
-      case _: Data.Snowplow => true
-      case _: Data.SelfDescribing => false
-    }
-  }
-
-  object Data {
-    case class Snowplow(data: Event) extends Data
-    case class SelfDescribing(data: SelfDescribingData[Json]) extends Data
-  }
-
-  /** Data that for some reasons cannot be inserted into DB */
-  sealed trait BadData extends Throwable with Product with Serializable
-  object BadData {
-    /** Typical Snowplow bad row (Loader Iglu Error etc) */
-    case class BadEnriched(data: BadRow) extends BadData
-    /** Non-enriched error */
-    case class BadJson(payload: String, error: String) extends BadData
-  }
 
   def pubsubDataDecoder(purpose: Purpose): MessageDecoder[Either[BadData, Data]] =
     purpose match {

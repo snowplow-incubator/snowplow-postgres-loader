@@ -28,11 +28,10 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.Client
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor}
 import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
-import com.snowplowanalytics.snowplow.postgres.config.Cli.processor
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, transform}
-import com.snowplowanalytics.snowplow.postgres.streaming.source.{Data, BadData}
+import com.snowplowanalytics.snowplow.postgres.streaming.data.{Data, BadData}
 
 object sink {
 
@@ -46,11 +45,13 @@ object sink {
    * @param state mutable Loader state
    * @param badQueue queue where all unsucessful actions can unload its results
    * @param client Iglu Client
+   * @param processor The actor processing these events
    */
   def goodSink[F[_]: Concurrent: Clock: DB](state: State[F],
                                             badQueue: Queue[F, BadData],
-                                            client: Client[F, Json]): Pipe[F, Data, Unit] =
-    _.parEvalMapUnordered(32)(sinkPayload(state, badQueue, client))
+                                            client: Client[F, Json],
+                                            processor: Processor): Pipe[F, Data, Unit] =
+    _.parEvalMapUnordered(32)(sinkPayload(state, badQueue, client, processor))
 
   /** Sink bad data coming directly into the `Pipe` and data coming from `badQueue` */
   def badSink[F[_]: Concurrent](badQueue: Queue[F, BadData]): Pipe[F, BadData, Unit] =
@@ -62,12 +63,13 @@ object sink {
   /** Implementation for [[goodSink]] */
   def sinkPayload[F[_]: Sync: Clock: DB](state: State[F],
                                          badQueue: Queue[F, BadData],
-                                         client: Client[F, Json])(payload: Data): F[Unit] = {
+                                         client: Client[F, Json],
+                                         processor: Processor)(payload: Data): F[Unit] = {
     val result = for {
       entities <- payload match {
         case Data.Snowplow(event) =>
           transform
-            .shredEvent[F](client, event)
+            .shredEvent[F](client, processor, event)
             .leftMap(bad => BadData.BadEnriched(bad))
         case Data.SelfDescribing(json) =>
           transform

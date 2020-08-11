@@ -27,12 +27,17 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 
+import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.postgres.Database
 import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
-import com.snowplowanalytics.snowplow.postgres.streaming.source.{Data, BadData}
+import com.snowplowanalytics.snowplow.postgres.streaming.data.{Data, BadData}
+
 
 class sinkspec extends Database {
   import Database._
+
+  val processor = Processor("pgloader", "test")
+
 
   "goodSink" should {
     "sink a single good event" >> {
@@ -45,7 +50,7 @@ class sinkspec extends Database {
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient, processor)).compile.drain.action
         eventIds <- query.action
         uaParserCtxs <- count("com_snowplowanalytics_snowplow_ua_parser_context_1").action
       } yield (eventIds, uaParserCtxs)
@@ -68,7 +73,7 @@ class sinkspec extends Database {
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient, processor)).compile.drain.action
         eventIds <- query.action
         rows <- count("com_getvero_bounced_1").action
       } yield (eventIds, rows)
@@ -106,7 +111,7 @@ class sinkspec extends Database {
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
         queue <- Queue.bounded[IO, BadData](1).action
-        _ <- stream.through(sink.goodSink(state, queue, igluClient)).compile.drain.action
+        _ <- stream.through(sink.goodSink(state, queue, igluClient, processor)).compile.drain.action
         rows <- count("me_chuwy_pg_test_1").action
         table <- describeTable("me_chuwy_pg_test_1").action
       } yield (rows, table)
