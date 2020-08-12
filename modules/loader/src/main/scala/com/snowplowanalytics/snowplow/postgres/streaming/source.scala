@@ -32,7 +32,7 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
-import com.snowplowanalytics.snowplow.postgres.config.{AppConfig, Cli}
+import com.snowplowanalytics.snowplow.postgres.config.{LoaderConfig, Cli}
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
 
@@ -52,16 +52,16 @@ object source {
    */
   def getSource[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker,
                                                       purpose: Purpose,
-                                                      config: AppConfig.Source) =
+                                                      config: LoaderConfig.Source) =
     config match {
-      case AppConfig.Source.Kinesis(appName, streamName, region, position) =>
+      case LoaderConfig.Source.Kinesis(appName, streamName, region, position) =>
         KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap) match {
           case Right(settings) =>
             readFromKinesisStream[F](settings).evalMap(record => record.checkpoint.as(parseRecord(purpose, record))).asRight
           case Left(error) =>
             error.asLeft
         }
-      case AppConfig.Source.PubSub(projectId, subscriptionId) =>
+      case LoaderConfig.Source.PubSub(projectId, subscriptionId) =>
         implicit val decoder: MessageDecoder[Either[BadData, Data]] = pubsubDataDecoder(purpose)
         val project = ProjectId(projectId)
         val subscription = Subscription(subscriptionId)

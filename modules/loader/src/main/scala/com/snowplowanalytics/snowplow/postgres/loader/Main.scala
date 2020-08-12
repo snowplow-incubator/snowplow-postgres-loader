@@ -31,17 +31,17 @@ object Main extends IOApp {
 
   def run(args: List[String]): IO[ExitCode] =
     Cli.parse[IO](args).value.flatMap {
-      case Right(Cli(appConfig, iglu, debug)) =>
+      case Right(Cli(loaderConfig, iglu, debug)) =>
         val logger = if (debug) LogHandler.jdkLogHandler else LogHandler.nop
-        resources.initialize[IO](appConfig.getLoaderConfig, logger, iglu).use {
+        resources.initialize[IO](loaderConfig.getDBConfig, logger, iglu).use {
           case (blocker, xa, state) =>
-            source.getSource[IO](blocker, appConfig.purpose, appConfig.source) match {
+            source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.source) match {
               case Right(dataStream) =>
-                val meta = appConfig.purpose.snowplow
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, appConfig.schema, meta)
+                val meta = loaderConfig.purpose.snowplow
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema, meta)
                 for {
-                  _ <- appConfig.purpose match {
-                    case Purpose.Enriched => utils.prepare[IO](appConfig.schema, xa, logger)
+                  _ <- loaderConfig.purpose match {
+                    case Purpose.Enriched => utils.prepare[IO](loaderConfig.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
                   goodSink = sink.goodSink[IO](state, iglu, processor)

@@ -27,13 +27,13 @@ import io.circe.Json
 import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.postgres.api.State
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.config.DBConfig
+import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
 
 object resources {
 
   /** Initialise Blocking Thread Pool, Connection Pool, DB state and bad queue resources */
-  def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: LoaderConfig,
+  def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: DBConfig,
                                                         logger: LogHandler,
                                                         iglu: Client[F, Json]) =
     for {
