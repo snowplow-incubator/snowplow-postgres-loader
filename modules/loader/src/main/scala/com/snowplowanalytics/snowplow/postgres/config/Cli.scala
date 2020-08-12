@@ -35,7 +35,7 @@ import com.monovore.decline._
 
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 
-case class Cli[F[_]](config: AppConfig, iglu: Client[F, Json], debug: Boolean)
+case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json], debug: Boolean)
 
 object Cli {
 
@@ -55,7 +55,7 @@ object Cli {
       configJson <- PathOrJson.load(rawConfig.config)
       configData <- SelfDescribingData.parse(configJson).leftMap(e => s"Configuration JSON is not self-describing, ${e.message(configJson.noSpaces)}").toEitherT[F]
       _ <- igluClient.check(configData).leftMap(e => s"Iglu validation failed with following error\n: ${e.asJson.spaces2}")
-      appConfig <- configData.data.as[AppConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
+      appConfig <- configData.data.as[LoaderConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
     } yield Cli(appConfig, igluClient, rawConfig.debug)
   }
 

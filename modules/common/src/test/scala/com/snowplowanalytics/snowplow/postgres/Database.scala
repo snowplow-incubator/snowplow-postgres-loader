@@ -23,7 +23,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{HttpConne
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
 
 trait Database extends Specification with BeforeAfterEach {
   import Database._

@@ -12,50 +12,25 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
-import cats.syntax.either._
+import DBConfig.JdbcUri
 
-import io.circe.Decoder
-import LoaderConfig.{JdbcUri, Purpose}
-import io.circe.generic.semiauto.deriveDecoder
-
-case class LoaderConfig(host: String,
+case class DBConfig(host: String,
                         port: Int,
                         database: String,
                         username: String,
                         password: String, // TODO: can be EC2 store
                         sslMode: String,
-                        schema: String,
-                        purpose: Purpose) {
+                        schema: String) {
   def getJdbc: JdbcUri =
     JdbcUri(host, port, database, sslMode.toLowerCase().replace('_', '-'))
 }
 
-object LoaderConfig {
+object DBConfig {
 
-  sealed trait Purpose extends Product with Serializable {
-    def snowplow: Boolean = this match {
-      case Purpose.Enriched => true
-      case Purpose.SelfDescribing => false
-    }
-  }
-  object Purpose {
-    case object Enriched extends Purpose
-    case object SelfDescribing extends Purpose
-
-    implicit def ioCirceConfigPurposeDecoder: Decoder[Purpose] =
-      Decoder.decodeString.emap {
-        case "ENRICHED_EVENTS" => Enriched.asRight
-        case "JSON" => SelfDescribing.asRight
-        case other => s"$other is not supported purpose, choose from ENRICHED_EVENTS and JSON".asLeft
-      }
-  }
 
   case class JdbcUri(host: String, port: Int, database: String, sslMode: String) {
     override def toString =
       s"jdbc:postgresql://$host:$port/$database?sslmode=$sslMode"
   }
-
-  implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =
-    deriveDecoder[LoaderConfig]
 
 }

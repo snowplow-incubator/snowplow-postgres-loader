@@ -24,13 +24,12 @@ import io.circe.generic.semiauto.deriveDecoder
 import io.circe.generic.extras.Configuration
 import io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 
-import AppConfig.Source
-import LoaderConfig.Purpose
+import LoaderConfig.{Purpose, Source}
 
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.InitialPositionInStream
 
-case class AppConfig(name: String,
+case class LoaderConfig(name: String,
                      id: UUID,
                      source: Source,
                      host: String,
@@ -41,11 +40,11 @@ case class AppConfig(name: String,
                      sslMode: String,
                      schema: String,
                      purpose: Purpose) {
-  def getLoaderConfig: LoaderConfig =
-    LoaderConfig(host, port, database, username, password, sslMode, schema, purpose)
+  def getDBConfig: DBConfig =
+    DBConfig(host, port, database, username, password, sslMode, schema)
 }
 
-object AppConfig {
+object LoaderConfig {
 
   implicit val awsRegionDecoder: Decoder[Region] =
     Decoder.decodeString.emap { s =>
@@ -90,6 +89,24 @@ object AppConfig {
       }
   }
 
+  sealed trait Purpose extends Product with Serializable {
+    def snowplow: Boolean = this match {
+      case Purpose.Enriched => true
+      case Purpose.SelfDescribing => false
+    }
+  }
+  object Purpose {
+    case object Enriched extends Purpose
+    case object SelfDescribing extends Purpose
+
+    implicit def ioCirceConfigPurposeDecoder: Decoder[Purpose] =
+      Decoder.decodeString.emap {
+        case "ENRICHED_EVENTS" => Enriched.asRight
+        case "JSON" => SelfDescribing.asRight
+        case other => s"$other is not supported purpose, choose from ENRICHED_EVENTS and JSON".asLeft
+      }
+  }
+
   sealed trait Source extends Product with Serializable
   object Source {
 
@@ -103,7 +120,7 @@ object AppConfig {
       deriveConfiguredDecoder[Source]
   }
 
-  implicit def ioCirceConfigDecoder: Decoder[AppConfig] =
-    deriveDecoder[AppConfig]
+  implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =
+    deriveDecoder[LoaderConfig]
 
 }

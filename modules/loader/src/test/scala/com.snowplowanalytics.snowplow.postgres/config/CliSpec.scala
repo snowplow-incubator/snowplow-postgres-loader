@@ -17,8 +17,7 @@ import java.util.UUID
 
 import cats.effect.{IO, Clock}
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
-import com.snowplowanalytics.snowplow.postgres.config.AppConfig.{Source, InitPosition}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source, InitPosition}
 
 import org.specs2.mutable.Specification
 import software.amazon.awssdk.regions.Region
@@ -32,7 +31,7 @@ class CliSpec extends Specification {
       val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
-      val expected = AppConfig(
+      val expected = LoaderConfig(
         "Acme Ltd. Snowplow Postgres",
         UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
         Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon),
