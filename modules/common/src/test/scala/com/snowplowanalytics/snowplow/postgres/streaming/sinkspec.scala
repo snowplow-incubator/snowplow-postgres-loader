@@ -44,7 +44,7 @@ class sinkspec extends Database {
       val event = Event.parse(line).getOrElse(throw new RuntimeException("Event is invalid"))
       val stream = Stream.emit[IO, Data](Data.Snowplow(event))
 
-      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, true)
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema)
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
@@ -66,7 +66,7 @@ class sinkspec extends Database {
       val json = SelfDescribingData.parse(row).getOrElse(throw new RuntimeException("Invalid SelfDescribingData"))
       val stream = Stream.emit[IO, Data](Data.SelfDescribing(json))
 
-      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, false)
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema)
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
@@ -103,7 +103,7 @@ class sinkspec extends Database {
         ColumnInfo("big_int",         None, true,   "bigint",                       None),
       )
 
-      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema, false)
+      implicit val D = DB.interpreter[IO](igluClient.resolver, xa, logger, Schema)
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)

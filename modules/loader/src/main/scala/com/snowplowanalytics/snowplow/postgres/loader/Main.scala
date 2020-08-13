@@ -37,8 +37,7 @@ object Main extends IOApp {
           case (blocker, xa, state) =>
             source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.source) match {
               case Right(dataStream) =>
-                val meta = loaderConfig.purpose.snowplow
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema, meta)
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema)
                 for {
                   _ <- loaderConfig.purpose match {
                     case Purpose.Enriched => utils.prepare[IO](loaderConfig.schema, xa, logger)
