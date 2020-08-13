@@ -89,12 +89,7 @@ object LoaderConfig {
       }
   }
 
-  sealed trait Purpose extends Product with Serializable {
-    def snowplow: Boolean = this match {
-      case Purpose.Enriched => true
-      case Purpose.SelfDescribing => false
-    }
-  }
+  sealed trait Purpose extends Product with Serializable
   object Purpose {
     case object Enriched extends Purpose
     case object SelfDescribing extends Purpose

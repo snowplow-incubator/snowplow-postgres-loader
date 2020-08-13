@@ -36,19 +36,20 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.FlatSchema
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, Payload, Processor}
 import Entity.Column
+import Shredded.{ShreddedSelfDescribing, ShreddedSnowplow}
 
 object transform {
   val Atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1,0,0))
 
   /** Transform the whole `Event` (canonical and JSONs) into list of independent entities ready to be inserted */
-  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], processor: Processor, event: Event): EitherT[F, BadRow, List[Entity]] = {
+  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], processor: Processor, event: Event): EitherT[F, BadRow, ShreddedSnowplow] = {
     val entities = event.contexts.data ++ event.derived_contexts.data ++ event.unstruct_event.data.toList
     val wholeEvent = entities
       .parTraverse(shredJson(client))
       .value
       .map { shreddedOrError =>
         (shreddedOrError, shredAtomic(Map())(event)).mapN {
-          (shreddedEntities, atomic) => atomic :: shreddedEntities.map(addMetadata(event.event_id, event.collector_tstamp))
+          (shreddedEntities, atomic) => ShreddedSnowplow(atomic, shreddedEntities.map(_.entity).map(addMetadata(event.event_id, event.collector_tstamp)))
         }
       }
     EitherT(wholeEvent).leftMap[BadRow](buildBadRow(processor, event))
@@ -83,7 +84,7 @@ object transform {
 
   /** Transform JSON into [[Entity]] */
   def shredJson[F[_]: Sync: Clock](client: Client[F, Json])
-                                  (data: SelfDescribingData[Json]): EitherT[F, NonEmptyList[FailureDetails.LoaderIgluError], Entity] = {
+                                  (data: SelfDescribingData[Json]): EitherT[F, NonEmptyList[FailureDetails.LoaderIgluError], ShreddedSelfDescribing] = {
     val key = data.schema
     schema.getOrdered(client.resolver)(key.vendor, key.name, key.version.model)
       .leftMap { error => NonEmptyList.of(error) }
@@ -105,7 +106,7 @@ object transform {
               case Atomic => "events"
               case other => StringUtils.getTableName(SchemaMap(other))
             }
-            Entity(tableName, data.schema, columns)
+            ShreddedSelfDescribing(Entity(tableName, data.schema, columns))
           }
       }
   }

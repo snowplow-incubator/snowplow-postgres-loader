@@ -74,7 +74,6 @@ object sink {
         case Data.SelfDescribing(json) =>
           transform
             .shredJson(client)(json)
-            .map(entity => List(entity))
             .leftMap(errors => BadData.BadJson(json.normalize.noSpaces, errors.toString))
       }
       insert <- EitherT(DB.process(entities, state).attempt).leftMap {

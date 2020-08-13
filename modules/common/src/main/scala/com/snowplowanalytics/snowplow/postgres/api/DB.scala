@@ -27,14 +27,14 @@ import com.snowplowanalytics.iglu.client.Resolver
 
 import com.snowplowanalytics.iglu.schemaddl.migrations.SchemaList
 
-import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, schema}
+import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, Shredded, schema}
 import com.snowplowanalytics.snowplow.postgres.storage.ddl
 import com.snowplowanalytics.snowplow.postgres.streaming.sink
 
 trait DB[F[_]] {
   def insert(event: List[Entity]): F[Unit]
   def alter(schemaKey: SchemaKey): F[Unit]
-  def create(schemaKey: SchemaKey): F[Unit]
+  def create(schemaKey: SchemaKey, includeMeta: Boolean): F[Unit]
 
   def getSchemaList(schemaKey: SchemaKey): F[SchemaList]
 }
@@ -43,14 +43,18 @@ object DB {
 
   def apply[F[_]](implicit ev: DB[F]): DB[F] = ev
 
-  def process[F[_]](event: List[Entity], state: State[F])
+  def process[F[_]](shredded: Shredded, state: State[F])
                    (implicit D: DB[F], B: Bracket[F, Throwable]): F[Unit] = {
-    val insert = D.insert(event)
+    val (includeMeta, entities) = shredded match {
+      case Shredded.ShreddedSnowplow(atomic, entities) => (true, atomic :: entities)
+      case Shredded.ShreddedSelfDescribing(entity) => (false, List(entity))
+    }
+    val insert = D.insert(entities)
 
     // Mutate table and Loader's mutable variable. Only for locked state!
     def mutate(missing: Set[SchemaKey], outdated: Set[SchemaKey]): F[Unit] =
       for {
-        _ <- missing.toList.traverse(D.create)  // Create missing tables if any
+        _ <- missing.toList.traverse(key => D.create(key, includeMeta))  // Create missing tables if any
         _ <- outdated.toList.traverse(D.alter)  // Updated outdated tables if any
         _ <- (missing ++ outdated).toList.traverse_ { entity =>
           for {                                 // Update state with new schemas
@@ -60,7 +64,7 @@ object DB {
         }
       } yield ()
 
-    state.checkAndRun(_.checkEvent(event), insert, mutate)
+    state.checkAndRun(_.checkEvent(entities), insert, mutate)
   }
 
 
@@ -87,8 +91,7 @@ object DB {
   def interpreter[F[_]: Sync: Clock](resolver: Resolver[F],
                                      xa: Transactor[F],
                                      logger: LogHandler,
-                                     schemaName: String,
-                                     meta: Boolean): DB[F] = new DB[F] {
+                                     schemaName: String): DB[F] = new DB[F] {
     def insert(event: List[Entity]): F[Unit] =
       event.traverse_(sink.insertStatement(logger, schemaName, _)).transact(xa)
 
@@ -97,8 +100,8 @@ object DB {
       rethrow(result.semiflatMap(_.transact(xa)))
     }
 
-    def create(schemaKey: SchemaKey): F[Unit] = {
-      val result = ddl.createTable[F](resolver, logger, schemaName, schemaKey, meta)
+    def create(schemaKey: SchemaKey, includeMeta: Boolean): F[Unit] = {
+      val result = ddl.createTable[F](resolver, logger, schemaName, schemaKey, includeMeta)
       rethrow(result.semiflatMap(_.transact(xa)))
     }
 
