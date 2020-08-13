@@ -30,6 +30,7 @@ import com.snowplowanalytics.iglu.client.Client
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor}
 import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
+import com.snowplowanalytics.snowplow.postgres.resources.FixedThreadPoolSize
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, transform}
 import com.snowplowanalytics.snowplow.postgres.streaming.data.{Data, BadData}
 
@@ -49,7 +50,7 @@ object sink {
   def goodSink[F[_]: Concurrent: Clock: DB](state: State[F],
                                             client: Client[F, Json],
                                             processor: Processor): Pipe[F, Data, BadData] =
-    _.parEvalMapUnordered(32)(sinkPayload(state, client, processor))
+    _.parEvalMapUnordered(FixedThreadPoolSize)(sinkPayload(state, client, processor))
      .collect {
        case Left(badData) => badData
      }
