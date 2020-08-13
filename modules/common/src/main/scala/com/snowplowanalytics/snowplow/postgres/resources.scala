@@ -32,6 +32,8 @@ import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
 
 object resources {
 
+  val FixedThreadPoolSize: Int = 32
+
   /** Initialise Blocking Thread Pool, Connection Pool, DB state and bad queue resources */
   def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: DBConfig,
                                                         logger: LogHandler,
@@ -39,26 +41,32 @@ object resources {
     for {
       blocker <- Blocker[F]
       xa <- resources.getTransactor[F](postgres.getJdbc, postgres.username, postgres.password, blocker)
-      keysF = for {
-        ci <- storage.query.getComments(postgres.schema, logger).transact(xa).map(_.separate)
-        (issues, comments) = ci
-        _ <- issues.traverse_(issue => Sync[F].delay(println(issue)))
-      } yield comments
-      keys <- Resource.liftF(keysF)
-      initState = State.init[F](keys, iglu.resolver).value.flatMap {
+      state <- Resource.liftF(initializeState(postgres, logger, iglu, xa))
+    } yield (blocker, xa, state)
+
+  def initializeState[F[_]: Concurrent: Clock](postgres: DBConfig,
+                            logger: LogHandler,
+                            iglu: Client[F, Json],
+                            xa: Transactor[F]): F[State[F]] = {
+    for {
+      ci <- storage.query.getComments(postgres.schema, logger).transact(xa).map(_.separate)
+      (issues, comments) = ci
+      _ <- issues.traverse_(issue => Sync[F].delay(println(issue)))
+      initState = State.init[F](comments, iglu.resolver).value.flatMap {
         case Left(error) =>
           val exception = new RuntimeException(s"Couldn't initalise the state $error")
           Sync[F].raiseError[State[F]](exception)
         case Right(state) =>
           Sync[F].pure(state)
       }
-      state <- Resource.liftF(initState)
-    } yield (blocker, xa, state)
+      state <- initState
+    } yield state
+  }
 
   /** Get a HikariCP transactor */
   def getTransactor[F[_]: Async: ContextShift](jdbcUri: JdbcUri, user: String, password: String, be: Blocker): Resource[F, HikariTransactor[F]] =
     for {
-      ce <- ExecutionContexts.fixedThreadPool[F](32)
+      ce <- ExecutionContexts.fixedThreadPool[F](FixedThreadPoolSize)
       xa <- HikariTransactor.newHikariTransactor[F]("org.postgresql.Driver", jdbcUri.toString, user, password, ce, be)
     } yield xa
 
