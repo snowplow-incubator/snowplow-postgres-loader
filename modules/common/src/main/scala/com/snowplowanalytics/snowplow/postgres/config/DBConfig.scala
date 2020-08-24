@@ -12,25 +12,36 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
+import com.zaxxer.hikari.HikariConfig
 import DBConfig.JdbcUri
 
 case class DBConfig(host: String,
-                        port: Int,
-                        database: String,
-                        username: String,
-                        password: String, // TODO: can be EC2 store
-                        sslMode: String,
-                        schema: String) {
+                    port: Int,
+                    database: String,
+                    username: String,
+                    password: String, // TODO: can be EC2 store
+                    sslMode: String,
+                    schema: String
+) {
   def getJdbc: JdbcUri =
     JdbcUri(host, port, database, sslMode.toLowerCase().replace('_', '-'))
 }
 
 object DBConfig {
 
-
   case class JdbcUri(host: String, port: Int, database: String, sslMode: String) {
     override def toString =
       s"jdbc:postgresql://$host:$port/$database?sslmode=$sslMode"
+  }
+
+  def hikariConfig(dbConfig: DBConfig) = {
+    val config = new HikariConfig()
+    config.setDriverClassName("org.postgresql.Driver")
+    config.setJdbcUrl(dbConfig.getJdbc.toString)
+    config.setUsername(dbConfig.username)
+    config.setPassword(dbConfig.password)
+    // TODO: DBConfig could take a MaxConnections field, and set `config.setMaximumPoolSize`.
+    config
   }
 
 }

@@ -6,7 +6,7 @@ import java.util.UUID
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{ContextShift, IO, Clock}
+import cats.effect.{Clock, ContextShift, IO}
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterEach
@@ -19,7 +19,7 @@ import io.circe.Json
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
-import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{HttpConnection, Config, Http}
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{Config, Http, HttpConnection}
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
@@ -56,7 +56,8 @@ object Database {
                         columnDefault: Option[String],
                         isNullable: Boolean,
                         dataType: String,
-                        characterMaximumLength: Option[Int])
+                        characterMaximumLength: Option[Int]
+  )
 
   def query: IO[List[UUID]] =
     fr"SELECT event_id FROM events".query[UUID].to[List].transact(xa)

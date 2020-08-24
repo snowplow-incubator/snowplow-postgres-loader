@@ -23,7 +23,7 @@ import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 import com.snowplowanalytics.snowplow.postgres.resources
 import com.snowplowanalytics.snowplow.postgres.storage.utils
-import com.snowplowanalytics.snowplow.postgres.streaming.{sink, source}
+import com.snowplowanalytics.snowplow.postgres.streaming.{UnorderedPipe, sink, source}
 
 object Main extends IOApp {
 
@@ -40,12 +40,12 @@ object Main extends IOApp {
                 implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema)
                 for {
                   _ <- loaderConfig.purpose match {
-                    case Purpose.Enriched => utils.prepare[IO](loaderConfig.schema, xa, logger)
+                    case Purpose.Enriched       => utils.prepare[IO](loaderConfig.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  goodSink = sink.goodSink[IO](state, iglu, processor)
-                  badSink = sink.badSink[IO]
-                  s = dataStream.observeEither(badSink, goodSink.andThen(_.through(badSink)))
+                  badSink = sink.badSink[IO](blocker)
+                  goodSink = sink.goodSink[IO](UnorderedPipe.forTransactor(xa), state, iglu, processor).andThen(_.through(badSink))
+                  s = dataStream.observeEither(badSink, goodSink)
 
                   _ <- s.compile.drain
                 } yield ExitCode.Success

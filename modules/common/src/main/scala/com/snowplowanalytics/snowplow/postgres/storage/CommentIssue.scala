@@ -20,8 +20,10 @@ import com.snowplowanalytics.iglu.core.ParseError
 sealed trait CommentIssue extends Product with Serializable
 
 object CommentIssue {
+
   /** Table missing a comment */
   case class Missing(table: String) extends CommentIssue
+
   /** Comment is not an Iglu URI */
   case class Invalid(table: String, comment: String, error: ParseError) extends CommentIssue
 
@@ -34,4 +36,3 @@ object CommentIssue {
 
   implicit val commentIssueEq: Eq[CommentIssue] = Eq.fromUniversalEquals[CommentIssue]
 }
-

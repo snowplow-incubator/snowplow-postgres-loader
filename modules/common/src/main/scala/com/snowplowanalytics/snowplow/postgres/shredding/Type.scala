@@ -18,24 +18,25 @@ import io.circe.Json
 
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.Schema
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.{Type => SType}
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.{MultipleOf, Maximum}
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.{Maximum, MultipleOf}
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.StringProperty.{Format, MaxLength, MinLength}
 
 import com.snowplowanalytics.snowplow.postgres.loader._
 
 sealed trait Type {
-  def ddl: String = this match {
-    case Type.Char(size) => s"CHAR($size)"
-    case Type.Varchar(size) => s"VARCHAR($size)"
-    case Type.Uuid => "UUID"
-    case Type.Timestamp => "TIMESTAMP"
-    case Type.Date => "DATE"
-    case Type.Integer => "INTEGER"
-    case Type.BigInt => "BIGINT"
-    case Type.Double => "DOUBLE PRECISION"
-    case Type.Bool => "BOOLEAN"
-    case Type.Jsonb => "JSONB"
-  }
+  def ddl: String =
+    this match {
+      case Type.Char(size)    => s"CHAR($size)"
+      case Type.Varchar(size) => s"VARCHAR($size)"
+      case Type.Uuid          => "UUID"
+      case Type.Timestamp     => "TIMESTAMP"
+      case Type.Date          => "DATE"
+      case Type.Integer       => "INTEGER"
+      case Type.BigInt        => "BIGINT"
+      case Type.Double        => "DOUBLE PRECISION"
+      case Type.Bool          => "BOOLEAN"
+      case Type.Jsonb         => "JSONB"
+    }
 }
 
 object Type {
@@ -54,16 +55,14 @@ object Type {
   type DataTypeSuggestion = (Schema, String) => Option[Type]
 
   /** Derive a Postgres type, given JSON Schema */
-  def getDataType(properties: Schema,
-                  varcharSize: Int,
-                  columnName: String,
-                  suggestions: List[DataTypeSuggestion]): Type =
+  def getDataType(properties: Schema, varcharSize: Int, columnName: String, suggestions: List[DataTypeSuggestion]): Type =
     suggestions match {
       case Nil => Type.Varchar(4096) // Generic
-      case suggestion :: tail => suggestion(properties, columnName) match {
-        case Some(format) => format
-        case None => getDataType(properties, varcharSize, columnName, tail)
-      }
+      case suggestion :: tail =>
+        suggestion(properties, columnName) match {
+          case Some(format) => format
+          case None         => getDataType(properties, varcharSize, columnName, tail)
+        }
     }
 
   // For complex enums Suggest VARCHAR with length of longest element
@@ -140,8 +139,7 @@ object Type {
 
   val charSuggestion: DataTypeSuggestion = (properties, _) => {
     (properties.`type`, properties.minLength, properties.maxLength) match {
-      case (Some(types), Some(MinLength(min)), Some(MaxLength(max)))
-        if min === max && types.possiblyWithNull(SType.String) =>
+      case (Some(types), Some(MinLength(min)), Some(MaxLength(max))) if min === max && types.possiblyWithNull(SType.String) =>
         Some(Type.Char(min.toInt))
       case _ => None
     }
@@ -150,7 +148,7 @@ object Type {
   val booleanSuggestion: DataTypeSuggestion = (properties, _) => {
     properties.`type` match {
       case Some(types) if types.possiblyWithNull(SType.Boolean) => Some(Type.Bool)
-      case _ => None
+      case _                                                    => None
     }
   }
 
@@ -163,10 +161,10 @@ object Type {
   }
 
   val varcharSuggestion: DataTypeSuggestion = (properties, _) => {
-    (properties.`type`,  properties.maxLength, properties.enum, properties.format) match {
-      case (Some(types), Some(maxLength),      _,               _) if types.possiblyWithNull(SType.String) =>
+    (properties.`type`, properties.maxLength, properties.enum, properties.format) match {
+      case (Some(types), Some(maxLength), _, _) if types.possiblyWithNull(SType.String) =>
         Some(Type.Varchar(maxLength.value.toInt))
-      case (_,           _,                    Some(enum),      _) =>
+      case (_, _, Some(enum), _) =>
         enum.value.map(jsonLength).maximumOption match {
           case Some(maxLength) if enum.value.lengthCompare(1) === 0 =>
             Some(Type.Varchar(maxLength))
@@ -177,7 +175,6 @@ object Type {
       case _ => None
     }
   }
-
 
   val dataTypeSuggestions: List[DataTypeSuggestion] = List(
     complexEnumSuggestion,
@@ -197,18 +194,18 @@ object Type {
     json.fold(0, b => b.toString.length, _ => json.noSpaces.length, _.length, _ => json.noSpaces.length, _ => json.noSpaces.length)
 
   /**
-   * Get set of types or enum as string excluding null
-   *
+    * Get set of types or enum as string excluding null
+    *
    * @param types comma-separated types
-   * @return set of strings
-   */
+    * @return set of strings
+    */
   private def excludeNull(types: List[Json]): List[Json] =
     types.filterNot(_.isNull)
 
   /**
-   * Check enum contains some different types
-   * (string and number or number and boolean)
-   */
+    * Check enum contains some different types
+    * (string and number or number and boolean)
+    */
   private def isComplexEnum(enum: List[Json]) = {
     // Predicates
     def isNumeric(s: Json) = s.isNumber
@@ -222,16 +219,16 @@ object Type {
   def isBigInt(long: Maximum): Boolean =
     long match {
       case Maximum.IntegerMaximum(bigInt) => bigInt > 2147483647L
-      case _ => false
+      case _                              => false
     }
 
   /**
-   * Check at least some `quantity` of `predicates` are true on `instances`
-   *
+    * Check at least some `quantity` of `predicates` are true on `instances`
+    *
    * @param instances list of instances to check on
-   * @param predicates list of predicates to check
-   * @param quantity required quantity
-   */
+    * @param predicates list of predicates to check
+    * @param quantity required quantity
+    */
   private def somePredicates(instances: List[Json], predicates: List[Json => Boolean], quantity: Int): Boolean =
     if (quantity === 0) true
     else
@@ -241,4 +238,3 @@ object Type {
         case _ :: tail                        => somePredicates(instances, tail, quantity)
       }
 }
-
