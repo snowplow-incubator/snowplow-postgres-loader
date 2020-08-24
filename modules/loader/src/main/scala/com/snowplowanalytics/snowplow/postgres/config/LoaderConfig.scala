@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
-import java.util.{UUID, Date}
+import java.util.{Date, UUID}
 import java.time.Instant
 
 import scala.jdk.CollectionConverters._
@@ -30,16 +30,17 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.InitialPositionInStream
 
 case class LoaderConfig(name: String,
-                     id: UUID,
-                     source: Source,
-                     host: String,
-                     port: Int,
-                     database: String,
-                     username: String,
-                     password: String, // TODO: can be EC2 store
-                     sslMode: String,
-                     schema: String,
-                     purpose: Purpose) {
+                        id: UUID,
+                        source: Source,
+                        host: String,
+                        port: Int,
+                        database: String,
+                        username: String,
+                        password: String, // TODO: can be EC2 store
+                        sslMode: String,
+                        schema: String,
+                        purpose: Purpose
+) {
   def getDBConfig: DBConfig =
     DBConfig(host, port, database, username, password, sslMode, schema)
 }
@@ -54,12 +55,14 @@ object LoaderConfig {
     }
 
   sealed trait InitPosition {
+
     /** Turn it into fs2-aws-compatible structure */
-    def unwrap: Either[InitialPositionInStream, Date] = this match {
-      case InitPosition.Latest => InitialPositionInStream.LATEST.asLeft
-      case InitPosition.TrimHorizon => InitialPositionInStream.TRIM_HORIZON.asLeft
-      case InitPosition.AtTimestamp(date) => Date.from(date).asRight
-    }
+    def unwrap: Either[InitialPositionInStream, Date] =
+      this match {
+        case InitPosition.Latest            => InitialPositionInStream.LATEST.asLeft
+        case InitPosition.TrimHorizon       => InitialPositionInStream.TRIM_HORIZON.asLeft
+        case InitPosition.AtTimestamp(date) => Date.from(date).asRight
+      }
   }
   object InitPosition {
     case object Latest extends InitPosition
@@ -70,7 +73,7 @@ object LoaderConfig {
       Decoder.decodeJson.emap { json =>
         json.asString match {
           case Some("TRIM_HORIZON") => TrimHorizon.asRight
-          case Some("LATEST") => Latest.asRight
+          case Some("LATEST")       => Latest.asRight
           case Some(other) =>
             s"Initial position $other is unknown. Choose from LATEST and TRIM_HORIZEON. AT_TIMESTAMP must provide the timestamp".asLeft
           case None =>
@@ -83,7 +86,8 @@ object LoaderConfig {
             } yield AtTimestamp(timestamp)
             result match {
               case Some(atTimestamp) => atTimestamp.asRight
-              case None => "Initial position can be either LATEST or TRIM_HORIZON string or AT_TIMESTAMP object (e.g. 2020-06-03T00:00:00Z)".asLeft
+              case None =>
+                "Initial position can be either LATEST or TRIM_HORIZON string or AT_TIMESTAMP object (e.g. 2020-06-03T00:00:00Z)".asLeft
             }
         }
       }
@@ -97,8 +101,8 @@ object LoaderConfig {
     implicit def ioCirceConfigPurposeDecoder: Decoder[Purpose] =
       Decoder.decodeString.emap {
         case "ENRICHED_EVENTS" => Enriched.asRight
-        case "JSON" => SelfDescribing.asRight
-        case other => s"$other is not supported purpose, choose from ENRICHED_EVENTS and JSON".asLeft
+        case "JSON"            => SelfDescribing.asRight
+        case other             => s"$other is not supported purpose, choose from ENRICHED_EVENTS and JSON".asLeft
       }
   }
 

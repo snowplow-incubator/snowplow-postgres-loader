@@ -39,12 +39,12 @@ object query {
             FROM pg_catalog.pg_namespace
             WHERE nspname = $schema
           ) AND relname = $tableName""")
-      .queryWithLogHandler[Option[String]](logger)  // It can be NULL, thus query[String].option will fail
+      .queryWithLogHandler[Option[String]](logger) // It can be NULL, thus query[String].option will fail
       .unique
       .map {
         case Some(comment) =>
           SchemaKey.fromUri(comment) match {
-            case Right(key) => key.asRight
+            case Right(key)  => key.asRight
             case Left(error) => CommentIssue.Invalid(tableName, comment, error).asLeft
           }
         case None =>

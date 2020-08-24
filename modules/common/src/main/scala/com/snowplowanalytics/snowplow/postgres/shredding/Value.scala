@@ -25,17 +25,18 @@ import doobie.postgres.circe.jsonb.implicits._
 import doobie.util.fragment.Fragment
 
 sealed trait Value {
-  def fragment: Fragment = this match {
-    case Value.Uuid(value) => fr"$value"
-    case Value.Char(value) => fr"$value"
-    case Value.Varchar(value) => fr"$value"
-    case Value.Timestamp(value) => fr"$value"
-    case Value.Integer(value) => fr"$value"
-    case Value.BigInt(value) => fr"$value"
-    case Value.Double(value) => fr"$value"
-    case Value.Bool(value) => fr"$value"
-    case Value.Jsonb(value) => fr"$value"
-  }
+  def fragment: Fragment =
+    this match {
+      case Value.Uuid(value)      => fr"$value"
+      case Value.Char(value)      => fr"$value"
+      case Value.Varchar(value)   => fr"$value"
+      case Value.Timestamp(value) => fr"$value"
+      case Value.Integer(value)   => fr"$value"
+      case Value.BigInt(value)    => fr"$value"
+      case Value.Double(value)    => fr"$value"
+      case Value.Bool(value)      => fr"$value"
+      case Value.Jsonb(value)     => fr"$value"
+    }
 }
 
 object Value {
@@ -53,4 +54,3 @@ object Value {
     def apply(instant: Instant): Timestamp = Timestamp(JTimestamp.from(instant))
   }
 }
-

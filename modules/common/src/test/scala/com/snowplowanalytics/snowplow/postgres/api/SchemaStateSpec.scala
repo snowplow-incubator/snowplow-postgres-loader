@@ -28,10 +28,7 @@ class SchemaStateSpec extends Database {
   "init" should {
     "initialize an empty state if no tables exist" >> {
       val state = SchemaState.init(List(), Database.igluClient.resolver)
-      val result = state
-        .semiflatMap(_.get)
-        .value
-        .unsafeRunSync()
+      val result = state.semiflatMap(_.get).value.unsafeRunSync()
       val expected = SchemaState(Map())
       result must beRight(expected)
     }
@@ -39,7 +36,7 @@ class SchemaStateSpec extends Database {
 
   "check" should {
     "confirm table exists with a same key as in state" >> {
-      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1,0,0))
+      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1, 0, 0))
       val schemaList = SchemaStateSpec.buildSchemaList(List(key))
 
       val init = Map(("com.acme", "event", 1) -> schemaList)
@@ -48,25 +45,25 @@ class SchemaStateSpec extends Database {
     }
 
     "claim table is outdated for 1-0-1 key if only 1-0-0 is known" >> {
-      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1,0,0))
+      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1, 0, 0))
       val schemaList = SchemaStateSpec.buildSchemaList(List(key))
 
       val init = Map(("com.acme", "event", 1) -> schemaList)
       val state = SchemaState(init)
-      state.check(SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1,0,1))) must beEqualTo(TableState.Outdated)
+      state.check(SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1, 0, 1))) must beEqualTo(TableState.Outdated)
     }
 
     "claim table is missing for bumped model" >> {
-      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1,0,0))
+      val key = SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(1, 0, 0))
       val schemaList = SchemaStateSpec.buildSchemaList(List(key))
 
       val init = Map(("com.acme", "event", 1) -> schemaList)
       val state = SchemaState(init)
-      state.check(SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(2,0,0))) must beEqualTo(TableState.Missing)
+      state.check(SchemaKey("com.acme", "event", "jsonschema", SchemaVer.Full(2, 0, 0))) must beEqualTo(TableState.Missing)
     }
 
     "always assume events table exists" >> {
-      val atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1,0,0))
+      val atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
       val state = SchemaState(Map())
       state.check(atomic) must beEqualTo(TableState.Match)
     }

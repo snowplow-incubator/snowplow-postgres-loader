@@ -23,10 +23,11 @@ object data {
 
   /** Kind of data flowing through the Loader */
   sealed trait Data extends Product with Serializable {
-    def snowplow: Boolean = this match {
-      case _: Data.Snowplow => true
-      case _: Data.SelfDescribing => false
-    }
+    def snowplow: Boolean =
+      this match {
+        case _: Data.Snowplow       => true
+        case _: Data.SelfDescribing => false
+      }
   }
 
   object Data {
@@ -37,10 +38,11 @@ object data {
   /** Data that for some reasons cannot be inserted into DB */
   sealed trait BadData extends Throwable with Product with Serializable
   object BadData {
+
     /** Typical Snowplow bad row (Loader Iglu Error etc) */
     case class BadEnriched(data: BadRow) extends BadData
+
     /** Non-enriched error */
     case class BadJson(payload: String, error: String) extends BadData
   }
 }
-

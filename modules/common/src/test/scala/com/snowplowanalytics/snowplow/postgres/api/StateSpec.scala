@@ -19,32 +19,32 @@ import concurrent.duration._
 import cats.implicits._
 
 import cats.effect.concurrent.Ref
-import cats.effect.{IO, Timer, Clock}
+import cats.effect.{Clock, IO, Timer}
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaVer}
 
 import org.specs2.ScalaCheck
 import org.specs2.mutable.Specification
-import com.snowplowanalytics.snowplow.postgres.Database.{igluClient, CS}
+import com.snowplowanalytics.snowplow.postgres.Database.{CS, igluClient}
 import com.snowplowanalytics.snowplow.postgres.api.DB.StateCheck
 import com.snowplowanalytics.snowplow.postgres.api.StateSpec._
 
-import org.scalacheck.{Prop, Gen}
+import org.scalacheck.{Gen, Prop}
 import org.specs2.scalacheck.Parameters
 
 class StateSpec extends Specification with ScalaCheck {
   "checkAndRun" should {
     "execute `mutate` when StateCheck is Block" >> {
-      val key = SchemaKey("com.acme", "missing_table", "jsonschema", SchemaVer.Full(1,0,0))
+      val key = SchemaKey("com.acme", "missing_table", "jsonschema", SchemaVer.Full(1, 0, 0))
       val alwaysEmpty: SchemaState => StateCheck =
         _ => StateCheck.Block(Set(key), Set.empty)
 
       val result = for {
         state <- initState
-        db    <- Ref.of[IO, List[Int]](List.empty)
-        keys  <- Ref.of[IO, Set[SchemaKey]](Set.empty)
-        _     <- state.checkAndRun(alwaysEmpty, IO.sleep(100.millis) *> db.update(s => 1 :: s), (m, _) => keys.update(_ ++ m))
-        res   <- (db.get, keys.get).tupled
+        db <- Ref.of[IO, List[Int]](List.empty)
+        keys <- Ref.of[IO, Set[SchemaKey]](Set.empty)
+        _ <- state.checkAndRun(alwaysEmpty, IO.sleep(100.millis) *> db.update(s => 1 :: s), (m, _) => keys.update(_ ++ m))
+        res <- (db.get, keys.get).tupled
       } yield res
 
       result.unsafeRunSync() must beEqualTo((List(1), Set(key)))
@@ -56,60 +56,64 @@ class StateSpec extends Specification with ScalaCheck {
 
       val result = for {
         state <- initState
-        db    <- Ref.of[IO, List[Int]](List.empty)
-        keys  <- Ref.of[IO, Set[SchemaKey]](Set.empty)
-        _     <- state.checkAndRun(alwaysOk, IO.sleep(100.millis) *> db.update(s => 1 :: s), (m, _) => keys.update(_ ++ m))
-        res   <- (db.get, keys.get).tupled
+        db <- Ref.of[IO, List[Int]](List.empty)
+        keys <- Ref.of[IO, Set[SchemaKey]](Set.empty)
+        _ <- state.checkAndRun(alwaysOk, IO.sleep(100.millis) *> db.update(s => 1 :: s), (m, _) => keys.update(_ ++ m))
+        res <- (db.get, keys.get).tupled
       } yield res
 
       result.unsafeRunSync() must beEqualTo((List(1), Set()))
     }
 
     "execute locked calls one after another" >> {
-      val key = SchemaKey("com.acme", "missing_table", "jsonschema", SchemaVer.Full(1,0,0))
+      val key = SchemaKey("com.acme", "missing_table", "jsonschema", SchemaVer.Full(1, 0, 0))
       val alwaysEmpty: SchemaState => StateCheck =
         _ => StateCheck.Block(Set(key), Set.empty)
 
-      Prop.forAll(durationsGen) { durations =>
-        val checks = for {
-          state <- initState
-          db    <- Ref.of[IO, Int](0)
-          keys  <- Ref.of[IO, Set[SchemaKey]](Set.empty)
-          _     <- durations.parTraverse_(d => state.checkAndRun(alwaysEmpty, db.update(_ + 1), (m, _) => IO.sleep(d) *> keys.update(_ ++ m)))
-          res   <- (db.get, keys.get).tupled
-        } yield res
-        val result = measure(checks)
+      Prop
+        .forAll(durationsGen) { durations =>
+          val checks = for {
+            state <- initState
+            db <- Ref.of[IO, Int](0)
+            keys <- Ref.of[IO, Set[SchemaKey]](Set.empty)
+            _ <- durations.parTraverse_(d => state.checkAndRun(alwaysEmpty, db.update(_ + 1), (m, _) => IO.sleep(d) *> keys.update(_ ++ m)))
+            res <- (db.get, keys.get).tupled
+          } yield res
+          val result = measure(checks)
 
-        result.unsafeRunSync() must beLike {
-          case ((counter, keys), time) =>
-            val totalDelays = durations.foldMap(_.toMillis)
-            val allBlocking = time must beBetween(totalDelays, totalDelays * 2)
-            allBlocking and (counter must beEqualTo(durations.length)) and (keys must beEqualTo(Set(key)))
+          result.unsafeRunSync() must beLike {
+            case ((counter, keys), time) =>
+              val totalDelays = durations.foldMap(_.toMillis)
+              val allBlocking = time must beBetween(totalDelays, totalDelays * 2)
+              allBlocking.and(counter must beEqualTo(durations.length)).and(keys must beEqualTo(Set(key)))
+          }
         }
-      }.setParameters(Parameters(minTestsOk = 5, maxSize = 10))
+        .setParameters(Parameters(minTestsOk = 5, maxSize = 10))
     }
 
-    "execute non-locked calls in parallel" >> {  // Potentially flaky test
+    "execute non-locked calls in parallel" >> { // Potentially flaky test
       val alwaysEmpty: SchemaState => StateCheck =
         _ => StateCheck.Ok
 
-      Prop.forAll(durationsGen) { durations =>
-        val checks = for {
-          state <- initState
-          db    <- Ref.of[IO, Int](0)
-          keys  <- Ref.of[IO, Set[SchemaKey]](Set.empty)
-          _     <- durations.parTraverse_(d => state.checkAndRun(alwaysEmpty, IO.sleep(d) *> db.update(_ + 1), (m, _) => keys.update(_ ++ m)))
-          res   <- (db.get, keys.get).tupled
-        } yield res
-        val result = measure(checks)
+      Prop
+        .forAll(durationsGen) { durations =>
+          val checks = for {
+            state <- initState
+            db <- Ref.of[IO, Int](0)
+            keys <- Ref.of[IO, Set[SchemaKey]](Set.empty)
+            _ <- durations.parTraverse_(d => state.checkAndRun(alwaysEmpty, IO.sleep(d) *> db.update(_ + 1), (m, _) => keys.update(_ ++ m)))
+            res <- (db.get, keys.get).tupled
+          } yield res
+          val result = measure(checks)
 
-        result.unsafeRunSync() must beLike {
-          case ((counter, keys), time) =>
-            val maxDelay = durations.fold(5.millis)((a, b) => a.max(b)).toMillis
-            val nonBlocking = time must lessThan(maxDelay * 2)
-            nonBlocking and (counter must beEqualTo(durations.length)) and (keys must beEqualTo(Set()))
+          result.unsafeRunSync() must beLike {
+            case ((counter, keys), time) =>
+              val maxDelay = durations.fold(5.millis)((a, b) => a.max(b)).toMillis
+              val nonBlocking = time must lessThan(maxDelay * 2)
+              nonBlocking.and(counter must beEqualTo(durations.length)).and(keys must beEqualTo(Set()))
+          }
         }
-      }.setParameters(Parameters(minTestsOk = 5, maxSize = 10))
+        .setParameters(Parameters(minTestsOk = 5, maxSize = 10))
     }
   }
 }
@@ -118,7 +122,8 @@ object StateSpec {
   implicit val C: Clock[IO] = Clock.create[IO]
   implicit val T: Timer[IO] = IO.timer(concurrent.ExecutionContext.global)
 
-  val initState = State.init[IO](List.empty, igluClient.resolver)
+  val initState = State
+    .init[IO](List.empty, igluClient.resolver)
     .value
     .flatMap(_.fold(_ => IO.raiseError[State[IO]](new IllegalStateException("Cannot start a test")), IO.pure))
 
