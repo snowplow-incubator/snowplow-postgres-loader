@@ -17,12 +17,12 @@ import java.time.format.DateTimeParseException
 import java.util.UUID
 import java.sql.Timestamp
 
-import cats.data.{EitherT, EitherNel, NonEmptyList}
+import cats.data.{EitherNel, EitherT, NonEmptyList}
 import cats.implicits._
 
-import cats.effect.{Sync, Clock}
+import cats.effect.{Clock, Sync}
 
-import io.circe.{JsonNumber, Json, ACursor}
+import io.circe.{ACursor, Json, JsonNumber}
 
 import com.snowplowanalytics.iglu.core._
 
@@ -34,25 +34,22 @@ import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.migrations.FlatSchema
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-import com.snowplowanalytics.snowplow.badrows.{FailureDetails, BadRow, Failure, Payload}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Payload, Processor}
 import Entity.Column
-import com.snowplowanalytics.snowplow.postgres.config.Cli
+import Shredded.{ShreddedSelfDescribing, ShreddedSnowplow}
 
 object transform {
-  val Atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1,0,0))
+  val Atomic = SchemaKey("com.snowplowanalytics.snowplow", "atomic", "jsonschema", SchemaVer.Full(1, 0, 0))
 
   /** Transform the whole `Event` (canonical and JSONs) into list of independent entities ready to be inserted */
-  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], event: Event): EitherT[F, BadRow, List[Entity]] = {
+  def shredEvent[F[_]: Sync: Clock](client: Client[F, Json], processor: Processor, event: Event): EitherT[F, BadRow, ShreddedSnowplow] = {
     val entities = event.contexts.data ++ event.derived_contexts.data ++ event.unstruct_event.data.toList
-    val wholeEvent = entities
-      .parTraverse(shredJson(client))
-      .value
-      .map { shreddedOrError =>
-        (shreddedOrError, shredAtomic(Map())(event)).mapN {
-          (shreddedEntities, atomic) => atomic :: shreddedEntities.map(addMetadata(event.event_id, event.collector_tstamp))
-        }
+    val wholeEvent = entities.parTraverse(shredJson(client)).value.map { shreddedOrError =>
+      (shreddedOrError, shredAtomic(Map())(event)).mapN { (shreddedEntities, atomic) =>
+        ShreddedSnowplow(atomic, shreddedEntities.map(_.entity).map(addMetadata(event.event_id, event.collector_tstamp)))
       }
-    EitherT(wholeEvent).leftMap[BadRow](buildBadRow(event))
+    }
+    EitherT(wholeEvent).leftMap[BadRow](buildBadRow(processor, event))
   }
 
   def addMetadata(eventId: UUID, tstamp: Instant)(entity: Entity): Entity = {
@@ -61,54 +58,57 @@ object transform {
       Column("schema_name", Type.Varchar(128), Value.Varchar(entity.origin.name)),
       Column("schema_format", Type.Varchar(16), Value.Varchar(entity.origin.format)),
       Column("schema_version", Type.Varchar(8), Value.Varchar(entity.origin.version.asString)),
-      Column("root_id",  Type.Uuid, Value.Uuid(eventId)),
-      Column("root_tstamp",  Type.Timestamp, Value.Timestamp(tstamp)),
+      Column("root_id", Type.Uuid, Value.Uuid(eventId)),
+      Column("root_tstamp", Type.Timestamp, Value.Timestamp(tstamp))
     )
 
     entity.copy(columns = metaColumns ++ entity.columns)
   }
 
   /** Remove all properties which are roots for other properties,
-   *  Otherwise table will have structure of [nested, nested.a, nested.b],
-   *  where we need just [nested.a, nested.b]
-   */
+    *  Otherwise table will have structure of [nested, nested.a, nested.b],
+    *  where we need just [nested.a, nested.b]
+    */
   def removeRoots(props: Properties): Properties = {
     val pointers = props.map(_._1).toSet
-    props.filterNot { case (pointer, _) =>
-      pointer.value.isEmpty || {
-        val problem = pointers.exists { p => pointer.isParentOf(p) && p != pointer }
-        problem
-      }
+    props.filterNot {
+      case (pointer, _) =>
+        pointer.value.isEmpty || {
+          val problem = pointers.exists(p => pointer.isParentOf(p) && p != pointer)
+          problem
+        }
     }
   }
 
   /** Transform JSON into [[Entity]] */
-  def shredJson[F[_]: Sync: Clock](client: Client[F, Json])
-                                  (data: SelfDescribingData[Json]): EitherT[F, NonEmptyList[FailureDetails.LoaderIgluError], Entity] = {
+  def shredJson[F[_]: Sync: Clock](
+    client: Client[F, Json]
+  )(data: SelfDescribingData[Json]): EitherT[F, NonEmptyList[FailureDetails.LoaderIgluError], ShreddedSelfDescribing] = {
     val key = data.schema
-    schema.getOrdered(client.resolver)(key.vendor, key.name, key.version.model)
-      .leftMap { error => NonEmptyList.of(error) }
-      .subflatMap { properties =>
-        val shredded = getNameTypeVal(properties)(data.data)
-          .parTraverse { case (columnName, pgType, value) =>
+    schema.getOrdered(client.resolver)(key.vendor, key.name, key.version.model).leftMap(error => NonEmptyList.of(error)).subflatMap {
+      properties =>
+        val shredded = getNameTypeVal(properties)(data.data).parTraverse {
+          case (columnName, pgType, value) =>
             cast(value, pgType).toEitherNel.map { value =>
-              value.map { v => Entity.Column(columnName, pgType, v) }
+              value.map(v => Entity.Column(columnName, pgType, v))
             }
-          }
+        }
 
         shredded
-          .leftMap { errors => errors.map { error =>
-            FailureDetails.LoaderIgluError.WrongType(data.schema, Json.Null, error)   // TODO
-          } }
+          .leftMap { errors =>
+            errors.map { error =>
+              FailureDetails.LoaderIgluError.WrongType(data.schema, Json.Null, error) // TODO
+            }
+          }
           .map { cols =>
             val columns = cols.collect { case Some(c) => c }
             val tableName = data.schema match {
               case Atomic => "events"
-              case other => StringUtils.getTableName(SchemaMap(other))
+              case other  => StringUtils.getTableName(SchemaMap(other))
             }
-            Entity(tableName, data.schema, columns)
+            ShreddedSelfDescribing(Entity(tableName, data.schema, columns))
           }
-      }
+    }
   }
 
   /** Transform only canonical part of `Event` (128 non-JSON fields) into `ShreddedEntity` */
@@ -116,13 +116,14 @@ object transform {
     def tranformDate(col: String)(s: String): Either[FailureDetails.LoaderIgluError, Entity.Column] =
       Either
         .catchOnly[DateTimeParseException](Instant.parse(s))
-        .map { parsed => Entity.Column(col, Type.Timestamp, Value.Timestamp(parsed)) }
-        .leftMap { _ => FailureDetails.LoaderIgluError.WrongType(Atomic, Json.fromString(s), "date-time") }
+        .map(parsed => Entity.Column(col, Type.Timestamp, Value.Timestamp(parsed)))
+        .leftMap(_ => FailureDetails.LoaderIgluError.WrongType(Atomic, Json.fromString(s), "date-time"))
 
     def transformUuid(col: String)(s: String): Either[FailureDetails.LoaderIgluError, Entity.Column] =
-      Either.catchOnly[IllegalArgumentException](UUID.fromString(s))
-        .map { parsed => Entity.Column(col, Type.Uuid, Value.Uuid(parsed)) }
-        .leftMap { _ => FailureDetails.LoaderIgluError.WrongType(Atomic, Json.fromString(s), "uuid") }
+      Either
+        .catchOnly[IllegalArgumentException](UUID.fromString(s))
+        .map(parsed => Entity.Column(col, Type.Uuid, Value.Uuid(parsed)))
+        .leftMap(_ => FailureDetails.LoaderIgluError.WrongType(Atomic, Json.fromString(s), "uuid"))
 
     def transformBool(col: String)(b: Boolean): Entity.Column =
       if (b) Entity.Column(col, Type.Bool, Value.Bool(true))
@@ -139,7 +140,7 @@ object transform {
     def transformNumber(col: String)(num: JsonNumber): Entity.Column =
       num.toInt match {
         case Some(int) => Entity.Column(col, Type.Integer, Value.Integer(int))
-        case None => Entity.Column(col, Type.Double, Value.Double(num.toDouble))
+        case None      => Entity.Column(col, Type.Double, Value.Double(num.toDouble))
       }
 
     def castError(expected: String)(value: Json) =
@@ -179,7 +180,7 @@ object transform {
         )
       case (_, None) => none.asRight.toEitherNel
     }
-    data.map(_.unite).map { columns => Entity("events", Atomic, columns) }
+    data.map(_.unite).map(columns => Entity("events", Atomic, columns))
   }
 
   def cast(json: Option[Json], dataType: Type): Either[String, Option[Value]] = {
@@ -190,39 +191,39 @@ object transform {
           case Type.Uuid =>
             j.asString match {
               case Some(s) => Value.Uuid(UUID.fromString(s)).some.asRight // TODO
-              case None => error
+              case None    => error
             }
           case Type.Varchar(_) =>
             val result = j.asString match {
               case Some(s) => s
-              case None => j.noSpaces
+              case None    => j.noSpaces
             }
             Value.Varchar(result).some.asRight[String]
           case Type.Bool =>
             j.asBoolean match {
               case Some(b) => Value.Bool(b).some.asRight
-              case None => error
+              case None    => error
             }
           case Type.Char(len) =>
             j.asString match {
               case Some(s) if s.length === len => Value.Char(s).some.asRight
-              case Some(_)                    => error
-              case None                       => error
+              case Some(_)                     => error
+              case None                        => error
             }
           case Type.Integer =>
             j.asNumber.flatMap(_.toInt) match {
               case Some(int) => Value.Integer(int).some.asRight
-              case None => error
+              case None      => error
             }
           case Type.BigInt =>
             j.asNumber.flatMap(_.toLong) match {
               case Some(long) => Value.BigInt(long).some.asRight
-              case None => error
+              case None       => error
             }
           case Type.Double =>
             j.asNumber.map(_.toDouble) match {
               case Some(int) => Value.Double(int).some.asRight
-              case None => error
+              case None      => error
             }
           case Type.Jsonb =>
             Value.Jsonb(j).some.asRight
@@ -258,31 +259,33 @@ object transform {
   }
 
   /**
-   * Transform Schema properties into information that can be transformed into DDL columns
-   * It's very important to implement it and [[getNameTypeVal]] using same logic as
-   * former is an implementation for DDL, while latter is implementation for data shredding
-   * @return list of JSON Pointer, column name, inferred DB type, nullability
-   */
+    * Transform Schema properties into information that can be transformed into DDL columns
+    * It's very important to implement it and [[getNameTypeVal]] using same logic as
+    * former is an implementation for DDL, while latter is implementation for data shredding
+    * @return list of JSON Pointer, column name, inferred DB type, nullability
+    */
   def getNameType(properties: Properties): List[(SchemaPointer, String, Type, Boolean)] =
-    removeRoots(properties).map { case (pointer, s: Schema) =>
-      val columnName: String = FlatSchema.getName(pointer)
-      val pgType = Type.getDataType(s, 4096, columnName, Type.dataTypeSuggestions)
-      (pointer, columnName, pgType, schema.canBeNull(s))
+    removeRoots(properties).map {
+      case (pointer, s: Schema) =>
+        val columnName: String = FlatSchema.getName(pointer)
+        val pgType = Type.getDataType(s, 4096, columnName, Type.dataTypeSuggestions)
+        (pointer, columnName, pgType, schema.canBeNull(s))
     }
 
   /**
-   * Extract JSON Paths from an actual JSON data
-   * It's very important to implement [[getNameType]] and this function using same logic as
-   * former is an implementation for DDL, while latter is implementation for data shredding
-   * @return list column name, inferred DB type, value
-   */
+    * Extract JSON Paths from an actual JSON data
+    * It's very important to implement [[getNameType]] and this function using same logic as
+    * former is an implementation for DDL, while latter is implementation for data shredding
+    * @return list column name, inferred DB type, value
+    */
   def getNameTypeVal(properties: Properties)(data: Json) =
-    getNameType(properties).map { case (pointer, columnName, dataType, _) =>
-      val value = getPath(pointer.forData, data)
-      (columnName, dataType, value)
+    getNameType(properties).map {
+      case (pointer, columnName, dataType, _) =>
+        val value = getPath(pointer.forData, data)
+        (columnName, dataType, value)
     }
 
-  private def buildBadRow(event: Event)(errors: NonEmptyList[FailureDetails.LoaderIgluError]) =
-    BadRow.LoaderIgluError(Cli.processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
+  private def buildBadRow(processor: Processor, event: Event)(errors: NonEmptyList[FailureDetails.LoaderIgluError]) =
+    BadRow.LoaderIgluError(processor, Failure.LoaderIgluErrors(errors), Payload.LoaderPayload(event))
 
 }

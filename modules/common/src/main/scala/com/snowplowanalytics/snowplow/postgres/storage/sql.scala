@@ -27,20 +27,20 @@ import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, Schema}
 import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, Migration, SchemaList}
 
 import com.snowplowanalytics.snowplow.postgres.shredding.transform.Atomic
-import com.snowplowanalytics.snowplow.postgres.shredding.{Type, transform, schema}
+import com.snowplowanalytics.snowplow.postgres.shredding.{Type, schema, transform}
 
 object sql {
 
   val DefaultVarcharSize = 4096
 
   /**
-   * Generate the `CREATE TABLE` DDL statement
-   * @param schema database schema
-   * @param entity shredded entity
-   * @param schemaList state of the
-   * @param meta whether meta columns should be prepended
-   * @return pure SQL expression with `CREATE TABLE` statement
-   */
+    * Generate the `CREATE TABLE` DDL statement
+    * @param schema database schema
+    * @param entity shredded entity
+    * @param schemaList state of the
+    * @param meta whether meta columns should be prepended
+    * @return pure SQL expression with `CREATE TABLE` statement
+    */
   def createTable(schema: String, entity: SchemaKey, schemaList: SchemaList, meta: Boolean): Fragment = {
     val subschemas = FlatSchema.extractProperties(schemaList)
 
@@ -52,7 +52,7 @@ object sql {
 
     val tableName = entity match {
       case Atomic => "events"
-      case other => StringUtils.getTableName(SchemaMap(other))
+      case other  => StringUtils.getTableName(SchemaMap(other))
     }
 
     val columns = (if (meta) definitions.metaColumns.map((definitions.columnToString _).tupled) else Nil) ++ entityColumns
@@ -64,12 +64,8 @@ object sql {
   def commentTable(logger: LogHandler, schema: String, tableName: String, schemaKey: SchemaMap): ConnectionIO[Unit] = {
     val uri = schemaKey.schemaKey.toSchemaUri
     val table = s"$schema.$tableName"
-    Fragment.const(s"COMMENT ON TABLE $table IS '$uri'")
-      .update(logger)
-      .run
-      .void
+    Fragment.const(s"COMMENT ON TABLE $table IS '$uri'").update(logger).run.void
   }
-
 
   def migrateTable(schema: String, entity: SchemaKey, schemaList: SchemaList) =
     schemaList match {
@@ -77,8 +73,8 @@ object sql {
         val migrationList = s.extractSegments.map(Migration.fromSegment)
         migrationList.find(_.from == entity.version) match {
           case Some(migration) =>
-            val schemaMap     = SchemaMap(migration.vendor, migration.name, "jsonschema", migration.to)
-            val tableName     = getTableName(schemaMap)                            // e.g. com_acme_event_1
+            val schemaMap = SchemaMap(migration.vendor, migration.name, "jsonschema", migration.to)
+            val tableName = getTableName(schemaMap) // e.g. com_acme_event_1
             val tableNameFull = s"$schema.$tableName"
 
             if (migration.diff.added.nonEmpty) {
@@ -95,20 +91,20 @@ object sql {
               Fragment.const0(s"""ALTER TABLE $tableNameFull $columnFragments""")
             } else Fragment.empty
           case None =>
-            Fragment.empty  // TODO: This should be a warning
+            Fragment.empty // TODO: This should be a warning
         }
       case _: SchemaList.Single =>
-        Fragment.empty  // TODO: This should be a warning
+        Fragment.empty // TODO: This should be a warning
     }
 
   /**
-   * Generate single ALTER TABLE statement for some new property
-   *
+    * Generate single ALTER TABLE statement for some new property
+    *
    * @param varcharSize default size for VARCHAR
-   * @param pair pair of property name and its Schema properties like
-   *             length, maximum, etc
-   * @return DDL statement altering single column in table
-   */
+    * @param pair pair of property name and its Schema properties like
+    *             length, maximum, etc
+    * @return DDL statement altering single column in table
+    */
   def buildColumn(varcharSize: Int, pair: (Pointer.SchemaPointer, Schema)): Column =
     pair match {
       case (pointer, properties) =>
@@ -118,6 +114,7 @@ object sql {
     }
 
   case class Column(name: String, dataType: Type, nullable: Boolean) {
+
     /** "column_name VARCHAR(128) NOT NULL" */
     def toFragment: Fragment =
       Fragment.const0(s"$name ${dataType.ddl} ${if (nullable) "NULL" else "NOT NULL"}")

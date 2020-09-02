@@ -16,31 +16,35 @@ import cats.effect.{ExitCode, IO, IOApp}
 
 import doobie.util.log.LogHandler
 
+import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.postgres.api.DB
 import com.snowplowanalytics.snowplow.postgres.config.Cli
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
+import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 import com.snowplowanalytics.snowplow.postgres.resources
 import com.snowplowanalytics.snowplow.postgres.storage.utils
-import com.snowplowanalytics.snowplow.postgres.streaming.{sink, source}
+import com.snowplowanalytics.snowplow.postgres.streaming.{UnorderedPipe, sink, source}
 
 object Main extends IOApp {
+
+  val processor = Processor(BuildInfo.name, BuildInfo.version)
+
   def run(args: List[String]): IO[ExitCode] =
     Cli.parse[IO](args).value.flatMap {
-      case Right(Cli(postgres, iglu, debug)) =>
+      case Right(Cli(loaderConfig, iglu, debug)) =>
         val logger = if (debug) LogHandler.jdkLogHandler else LogHandler.nop
-        resources.initialize[IO](postgres, logger, iglu).use {
-          case (blocker, xa, state, badQueue) =>
-            source.getSource[IO](blocker, postgres.purpose, postgres.source) match {
+        resources.initialize[IO](loaderConfig.getDBConfig, logger, iglu).use {
+          case (blocker, xa, state) =>
+            source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.source) match {
               case Right(dataStream) =>
-                val meta = postgres.purpose.snowplow
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, postgres.schema, meta)
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema)
                 for {
-                  _ <- postgres.purpose match {
-                    case Purpose.Enriched => utils.prepare[IO](postgres.schema, xa, logger)
+                  _ <- loaderConfig.purpose match {
+                    case Purpose.Enriched       => utils.prepare[IO](loaderConfig.schema, xa, logger)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  goodSink = sink.goodSink[IO](state, badQueue, iglu)
-                  badSink = sink.badSink[IO](badQueue)
+                  badSink = sink.badSink[IO](blocker)
+                  goodSink = sink.goodSink[IO](UnorderedPipe.forTransactor(xa), state, iglu, processor).andThen(_.through(badSink))
                   s = dataStream.observeEither(badSink, goodSink)
 
                   _ <- s.compile.drain

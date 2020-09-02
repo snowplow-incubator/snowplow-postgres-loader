@@ -16,7 +16,7 @@ import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.concurrent.{Ref, MVar}
+import cats.effect.concurrent.{MVar, Ref}
 import cats.effect.{Bracket, Clock, Concurrent}
 import cats.effect.implicits._
 
@@ -30,31 +30,31 @@ import com.snowplowanalytics.snowplow.badrows.FailureDetails.LoaderIgluError
 import com.snowplowanalytics.snowplow.postgres.api.DB.StateCheck
 
 /**
- * Mutable variable, protected by by lock.
- * [[checkAndRun]] is the only function that should be able to mutate this structure
- */
+  * Mutable variable, protected by by lock.
+  * [[checkAndRun]] is the only function that should be able to mutate this structure
+  */
 final class State[F[_]](lock: MVar[F, Unit], state: Ref[F, SchemaState]) {
+
   /**
-   * Primary state-handling and the only state-mutation function.
-   *
+    * Primary state-handling and the only state-mutation function.
+    *
    * Most of the time `stateCheck` returns `StateCheck.Ok`, meaning that data can be
-   * inserted without state or DB schema mutation and lock is not acquired, while
-   * `action` gets executed.
-   *
+    * inserted without state or DB schema mutation and lock is not acquired, while
+    * `action` gets executed.
+    *
    * If new schemas are coming through and state and DB schema have to be changed
-   * it acquires a lock, preventing other threads from mutating data first, then checks
-   * if state is still outdated (in case other thread acquired the lock first) and
-   * performs `mutate` and `action`, releasing the lock afterwards
-   * If another thread already updated the state it just performs `action`
-   *
+    * it acquires a lock, preventing other threads from mutating data first, then checks
+    * if state is still outdated (in case other thread acquired the lock first) and
+    * performs `mutate` and `action`, releasing the lock afterwards
+    * If another thread already updated the state it just performs `action`
+    *
    * @param stateCheck check if lock has to be acquired
-   * @param action primary IO - DB insert statement
-   * @param mutate IO that mutates the internal state and DB schema
-   */
-  def checkAndRun(stateCheck: SchemaState => StateCheck,
-                  action: F[Unit],
-                  mutate: (Set[SchemaKey], Set[SchemaKey]) => F[Unit])
-                 (implicit F: Bracket[F, Throwable]): F[Unit] = {
+    * @param action primary IO - DB insert statement
+    * @param mutate IO that mutates the internal state and DB schema
+    */
+  def checkAndRun(stateCheck: SchemaState => StateCheck, action: F[Unit], mutate: (Set[SchemaKey], Set[SchemaKey]) => F[Unit])(implicit
+    F: Bracket[F, Throwable]
+  ): F[Unit] = {
     // Just insert OR mutate and insert
     def check(update: (Set[SchemaKey], Set[SchemaKey]) => F[Unit]) =
       state.get.map(stateCheck).flatMap {
@@ -64,7 +64,7 @@ final class State[F[_]](lock: MVar[F, Unit], state: Ref[F, SchemaState]) {
           update(missingTables, outdatedTables)
       }
 
-    check { (_, _) => withLock(check(mutate)) } *> action
+    check((_, _) => withLock(check(mutate))) *> action
   }
 
   /** Update [[SchemaState]] with new `SchemaList` */
@@ -83,4 +83,3 @@ object State {
       state <- SchemaState.init[F](keys, resolver)
     } yield new State[F](lock, state)
 }
-

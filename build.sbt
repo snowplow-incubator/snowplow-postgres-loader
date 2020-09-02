@@ -20,18 +20,14 @@ lazy val common = project
   .settings(name := "snowplow-postgres")
   .enablePlugins(BuildInfoPlugin)
   .settings(BuildSettings.projectSettings)
-  .settings(BuildSettings.buildInfoSettings)
   .settings(BuildSettings.scoverageSettings)
-  .settings(BuildSettings.addExampleConfToTestCp)
   .settings(BuildSettings.mavenSettings)
   .settings(
     resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(
       Dependencies.logger,
       Dependencies.postgres,
-      Dependencies.commons,
       Dependencies.catsEffect,
-      Dependencies.decline,
       Dependencies.circe,
       Dependencies.circeGeneric,
       Dependencies.circeExtras,
@@ -41,8 +37,6 @@ lazy val common = project
       Dependencies.doobiePg,
       Dependencies.doobiePgCirce,
       Dependencies.doobieHikari,
-      Dependencies.fs2Aws,
-      Dependencies.fs2PubSub,
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,
@@ -57,6 +51,17 @@ lazy val loader = project
   .settings(name := "snowplow-postgres-loader")
   .settings(BuildSettings.projectSettings)
   .settings(BuildSettings.dockerSettings)
+  .settings(BuildSettings.buildInfoSettings)
+  .settings(BuildSettings.addExampleConfToTestCp)
+  .settings(
+    libraryDependencies ++= Seq(
+      Dependencies.commons,
+      Dependencies.fs2Aws,
+      Dependencies.fs2PubSub,
+      Dependencies.decline,
+      Dependencies.specs2
+    )
+  )
   .dependsOn(common)
   .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 

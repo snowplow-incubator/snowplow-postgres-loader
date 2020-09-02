@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets
 
 import cats.implicits._
 
-import cats.effect.{ContextShift, Sync, ConcurrentEffect, Blocker}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Sync}
 
 import fs2.aws.kinesis.{CommittableRecord, KinesisConsumerSettings}
 import fs2.aws.kinesis.consumer.readFromKinesisStream
@@ -32,26 +32,25 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
-import com.snowplowanalytics.snowplow.postgres.config.{LoaderConfig, Cli}
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
+import com.snowplowanalytics.snowplow.postgres.config.{Cli, LoaderConfig}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source}
+import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
 
 import com.google.pubsub.v1.PubsubMessage
-import com.permutive.pubsub.consumer.Model.{Subscription, ProjectId}
+import com.permutive.pubsub.consumer.Model.{ProjectId, Subscription}
 import com.permutive.pubsub.consumer.decoder.MessageDecoder
 
 object source {
 
   /**
-   * Acquire a stream of parsed payloads
-   *
+    * Acquire a stream of parsed payloads
+    *
    * @param blocker thread pool for pulling events (used only in PubSub)
-   * @param purpose kind of data, enriched or plain JSONs
-   * @param config source configuration
-   * @return either error or stream of parsed payloads
-   */
-  def getSource[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker,
-                                                      purpose: LoaderConfig.Purpose,
-                                                      config: LoaderConfig.Source) =
+    * @param purpose kind of data, enriched or plain JSONs
+    * @param config source configuration
+    * @return either error or stream of parsed payloads
+    */
+  def getSource[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker, purpose: Purpose, config: Source) =
     config match {
       case LoaderConfig.Source.Kinesis(appName, streamName, region, position) =>
         KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap) match {
@@ -65,27 +64,29 @@ object source {
         val project = ProjectId(projectId)
         val subscription = Subscription(subscriptionId)
         val pubsubConfig = PubsubGoogleConsumerConfig[F](onFailedTerminate = pubsubOnFailedTerminate[F])
-        PubsubGoogleConsumer.subscribeAndAck[F, Either[BadData, Data]](blocker, project, subscription, pubsubErrorHandler[F], pubsubConfig).asRight
+        PubsubGoogleConsumer
+          .subscribeAndAck[F, Either[BadData, Data]](blocker, project, subscription, pubsubErrorHandler[F], pubsubConfig)
+          .asRight
     }
 
   /**
-   * Parse Kinesis record into a valid Loader's record, either enriched event or self-describing JSON,
-   * depending on purpose of the Loader
-   */
+    * Parse Kinesis record into a valid Loader's record, either enriched event or self-describing JSON,
+    * depending on purpose of the Loader
+    */
   def parseRecord(kind: Purpose, record: CommittableRecord): Either[BadData, Data] = {
-    val string = try {
-      StandardCharsets.UTF_8.decode(record.record.data()).toString.asRight[BadData]
-    } catch {
-      case _: IllegalArgumentException =>
-        val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
-        kind match {
-          case Purpose.Enriched =>
-            val badRow = BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
-            BadData.BadEnriched(badRow).asLeft
-          case Purpose.SelfDescribing =>
-            BadData.BadJson(payload, "Cannot deserialize self-describing JSON from Kinesis record").asLeft
-        }
-    }
+    val string =
+      try StandardCharsets.UTF_8.decode(record.record.data()).toString.asRight[BadData]
+      catch {
+        case _: IllegalArgumentException =>
+          val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
+          kind match {
+            case Purpose.Enriched =>
+              val badRow = BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
+              BadData.BadEnriched(badRow).asLeft
+            case Purpose.SelfDescribing =>
+              BadData.BadJson(payload, "Cannot deserialize self-describing JSON from Kinesis record").asLeft
+          }
+      }
 
     string.flatMap { payload =>
       kind match {
@@ -109,28 +110,6 @@ object source {
       .flatMap(json => SelfDescribingData.parse[Json](json).leftMap(_.message(json.noSpaces)))
       .leftMap(error => BadData.BadJson(s, error))
 
-  /** Kind of data flowing through the Loader */
-  sealed trait Data extends Product with Serializable {
-    def snowplow: Boolean = this match {
-      case _: Data.Snowplow => true
-      case _: Data.SelfDescribing => false
-    }
-  }
-
-  object Data {
-    case class Snowplow(data: Event) extends Data
-    case class SelfDescribing(data: SelfDescribingData[Json]) extends Data
-  }
-
-  /** Data that for some reasons cannot be inserted into DB */
-  sealed trait BadData extends Throwable with Product with Serializable
-  object BadData {
-    /** Typical Snowplow bad row (Loader Iglu Error etc) */
-    case class BadEnriched(data: BadRow) extends BadData
-    /** Non-enriched error */
-    case class BadJson(payload: String, error: String) extends BadData
-  }
-
   def pubsubDataDecoder(purpose: Purpose): MessageDecoder[Either[BadData, Data]] =
     purpose match {
       case Purpose.Enriched =>
@@ -140,8 +119,7 @@ object source {
     }
 
   def pubsubErrorHandler[F[_]: Sync](message: PubsubMessage, error: Throwable, ack: F[Unit], nack: F[Unit]): F[Unit] = {
-    val _ = error
-    val _ = nack
+    val _ = (error, nack)
     Sync[F].delay(println(s"Couldn't handle ${message.getData.toStringUtf8}")) *> ack
   }
 

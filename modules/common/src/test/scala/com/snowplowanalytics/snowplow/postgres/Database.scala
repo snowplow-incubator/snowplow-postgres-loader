@@ -6,7 +6,7 @@ import java.util.UUID
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{ContextShift, IO, Clock}
+import cats.effect.{Clock, ContextShift, IO}
 
 import org.specs2.mutable.Specification
 import org.specs2.specification.BeforeAfterEach
@@ -19,11 +19,11 @@ import io.circe.Json
 import com.snowplowanalytics.iglu.client.Client
 import com.snowplowanalytics.iglu.client.resolver.Resolver
 import com.snowplowanalytics.iglu.client.resolver.registries.Registry
-import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{HttpConnection, Config, Http}
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{Config, Http, HttpConnection}
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
 
 trait Database extends Specification with BeforeAfterEach {
   import Database._
@@ -47,7 +47,7 @@ object Database {
   val logger: LogHandler = LogHandler.nop
   implicit val CS: ContextShift[IO] = IO.contextShift(concurrent.ExecutionContext.global)
 
-  val jdbcUri = JdbcUri("localhost", 5432, "snowplow")
+  val jdbcUri = JdbcUri("localhost", 5432, "snowplow", "allow")
   val registry = Http(Config("localhost registry", 1, Nil), HttpConnection(URI.create("http://localhost:8080/api/"), None))
   val igluClient = Client[IO, Json](Resolver(List(Registry.IgluCentral, registry), None), CirceValidator)
   val xa: Transactor[IO] = resources.getTransactorDefault[IO](jdbcUri, "postgres", "mysecretpassword")
@@ -56,7 +56,8 @@ object Database {
                         columnDefault: Option[String],
                         isNullable: Boolean,
                         dataType: String,
-                        characterMaximumLength: Option[Int])
+                        characterMaximumLength: Option[Int]
+  )
 
   def query: IO[List[UUID]] =
     fr"SELECT event_id FROM events".query[UUID].to[List].transact(xa)

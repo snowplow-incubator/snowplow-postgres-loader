@@ -16,8 +16,8 @@ import cats.Eq
 
 import com.snowplowanalytics.iglu.core.SchemaKey
 
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.{Pointer, JsonSchemaProperty}
-import com.snowplowanalytics.iglu.schemaddl.jsonschema.Pointer.{SchemaProperty, Cursor}
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.{JsonSchemaProperty, Pointer}
+import com.snowplowanalytics.iglu.schemaddl.jsonschema.Pointer.{Cursor, SchemaProperty}
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperties.Type
 
 package object loader {

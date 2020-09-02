@@ -12,21 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.postgres.shredding
 
-import com.snowplowanalytics.iglu.core.SchemaKey
+sealed trait Shredded
 
-import Entity.Column
-
-/** Final shredded entity */
-case class Entity(tableName: String, origin: SchemaKey, columns: List[Column])
-
-object Entity {
-
-  /**
-    * Table cell with value and meta info
-    * @param name Postgres column name
-    * @param dataType Postgres data type
-    * @param value ready-to-be-inserted value
-    */
-  case class Column(name: String, dataType: Type, value: Value)
-
+object Shredded {
+  case class ShreddedSnowplow(event: Entity, entities: List[Entity]) extends Shredded
+  case class ShreddedSelfDescribing(entity: Entity) extends Shredded
 }

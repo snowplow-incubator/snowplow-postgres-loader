@@ -15,9 +15,9 @@ package com.snowplowanalytics.snowplow.postgres.config
 import java.nio.file.Paths
 import java.util.UUID
 
-import cats.effect.{IO, Clock}
+import cats.effect.{Clock, IO}
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Source, InitPosition, Purpose}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source}
 
 import org.specs2.mutable.Specification
 import software.amazon.awssdk.regions.Region
@@ -47,7 +47,7 @@ class CliSpec extends Specification {
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
         case Cli(config, _, false) => config must beEqualTo(expected)
-        case Cli(_, _, true) => ko("Unexpected debug flag")
+        case Cli(_, _, true)       => ko("Unexpected debug flag")
       }
     }
   }

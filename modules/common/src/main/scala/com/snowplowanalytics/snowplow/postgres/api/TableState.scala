@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.api
 
-private[postgres] sealed trait TableState extends Product with Serializable
+sealed private[postgres] trait TableState extends Product with Serializable
 private[postgres] object TableState {
   case object Match extends TableState
   case object Outdated extends TableState

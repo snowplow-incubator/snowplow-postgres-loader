@@ -34,7 +34,7 @@ object utils {
 
   def prepare[F[_]: Sync](schema: String, xa: Transactor[F], logger: LogHandler): F[Unit] =
     prepareEventsTable(schema, logger).transact(xa).flatMap {
-      case true => Sync[F].delay(println(s"$schema.events table already exists"))
+      case true  => Sync[F].delay(println(s"$schema.events table already exists"))
       case false => Sync[F].delay(println(s"$schema.events table created"))
     }
 }

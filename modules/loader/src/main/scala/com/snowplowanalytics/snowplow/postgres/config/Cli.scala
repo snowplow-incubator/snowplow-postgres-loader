@@ -12,13 +12,13 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
-import java.nio.file.{InvalidPathException, Files, Path, Paths}
+import java.nio.file.{Files, InvalidPathException, Path, Paths}
 import java.util.Base64
 
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.{Sync, Clock}
+import cats.effect.{Clock, Sync}
 
 import io.circe.Json
 import io.circe.syntax._
@@ -35,7 +35,7 @@ import com.monovore.decline._
 
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 
-case class Cli[F[_]](postgres: LoaderConfig, iglu: Client[F, Json], debug: Boolean)
+case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json], debug: Boolean)
 
 object Cli {
 
@@ -44,37 +44,39 @@ object Cli {
   /** Parse list of arguments, validate against schema and initialize */
   def parse[F[_]: Sync: Clock](args: List[String]): EitherT[F, String, Cli[F]] =
     command.parse(args) match {
-      case Left(help) => EitherT.leftT[F, Cli[F]](help.show)
+      case Left(help)       => EitherT.leftT[F, Cli[F]](help.show)
       case Right(rawConfig) => fromRawConfig(rawConfig)
     }
 
-  private def fromRawConfig[F[_]: Sync: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] = {
+  private def fromRawConfig[F[_]: Sync: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {
       resolverJson <- PathOrJson.load(rawConfig.resolver)
       igluClient <- Client.parseDefault[F](resolverJson).leftMap(_.show)
       configJson <- PathOrJson.load(rawConfig.config)
-      configData <- SelfDescribingData.parse(configJson).leftMap(e => s"Configuration JSON is not self-describing, ${e.message(configJson.noSpaces)}").toEitherT[F]
+      configData <-
+        SelfDescribingData
+          .parse(configJson)
+          .leftMap(e => s"Configuration JSON is not self-describing, ${e.message(configJson.noSpaces)}")
+          .toEitherT[F]
       _ <- igluClient.check(configData).leftMap(e => s"Iglu validation failed with following error\n: ${e.asJson.spaces2}")
-      pgConfig <- configData.data.as[LoaderConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
-    } yield Cli(pgConfig, igluClient, rawConfig.debug)
-  }
+      appConfig <- configData.data.as[LoaderConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
+    } yield Cli(appConfig, igluClient, rawConfig.debug)
 
   /** Config files for Loader can be passed either as FS path
-   * or as base64-encoded JSON (if `--base64` is provided) */
+    * or as base64-encoded JSON (if `--base64` is provided) */
   type PathOrJson = Either[Path, Json]
 
   object PathOrJson {
     def parse(string: String, encoded: Boolean): ValidatedNel[String, PathOrJson] = {
-      val result = if (encoded)
-        Either
-          .catchOnly[IllegalArgumentException](new String(Base64.getDecoder.decode(string)))
-          .leftMap(_.getMessage)
-          .flatMap(s => jsonParse(s).leftMap(_.show))
-          .map(_.asRight)
-      else Either.catchOnly[InvalidPathException](Paths.get(string).asLeft).leftMap(_.getMessage)
-      result
-        .leftMap(error => s"Cannot parse as ${if (encoded) "base64-encoded JSON" else "FS path"}: $error")
-        .toValidatedNel
+      val result =
+        if (encoded)
+          Either
+            .catchOnly[IllegalArgumentException](new String(Base64.getDecoder.decode(string)))
+            .leftMap(_.getMessage)
+            .flatMap(s => jsonParse(s).leftMap(_.show))
+            .map(_.asRight)
+        else Either.catchOnly[InvalidPathException](Paths.get(string).asLeft).leftMap(_.getMessage)
+      result.leftMap(error => s"Cannot parse as ${if (encoded) "base64-encoded JSON" else "FS path"}: $error").toValidatedNel
     }
 
     def load[F[_]: Sync](value: PathOrJson): EitherT[F, String, Json] =
@@ -100,22 +102,26 @@ object Cli {
     help = "Self-describing JSON configuration"
   )
 
-  val base64 = Opts.flag(
-    long = "base64",
-    help = "Configuration passed as Base64-encoded string, not as file path"
-  ).orFalse
+  val base64 = Opts
+    .flag(
+      long = "base64",
+      help = "Configuration passed as Base64-encoded string, not as file path"
+    )
+    .orFalse
 
-  val debug = Opts.flag(
-    long = "debug",
-    help = "Show verbose SQL logging"
-  ).orFalse
+  val debug = Opts
+    .flag(
+      long = "debug",
+      help = "Show verbose SQL logging"
+    )
+    .orFalse
 
   /** Temporary, pure config */
   private case class RawConfig(config: PathOrJson, resolver: PathOrJson, debug: Boolean)
 
   private val command: Command[RawConfig] =
-    Command[(String, String, Boolean, Boolean)](BuildInfo.name, BuildInfo.version)((config, resolver, base64, debug).tupled)
-      .mapValidated { case (cfg, res, enc, deb) =>
+    Command[(String, String, Boolean, Boolean)](BuildInfo.name, BuildInfo.version)((config, resolver, base64, debug).tupled).mapValidated {
+      case (cfg, res, enc, deb) =>
         (PathOrJson.parse(cfg, enc), PathOrJson.parse(res, enc), deb.validNel).mapN(RawConfig.apply)
-      }
+    }
 }
