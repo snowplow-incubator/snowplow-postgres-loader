@@ -62,11 +62,14 @@ object resources {
 
   /** Get a HikariCP transactor */
   def getTransactor[F[_]: Async: ContextShift](config: HikariConfig, be: Blocker): Resource[F, HikariTransactor[F]] = {
-    val threadPoolSize =
+    val threadPoolSize = {
       // This could be made configurable, but these are sensible defaults and unlikely to be critical for tuning throughput.
       // Exceeding availableProcessors could lead to unnecessary context switching.
       // Exceeding the connection pool size is unnecessary, because that is limit of the app's parallelism.
-      Math.min(config.getMaximumPoolSize, Runtime.getRuntime.availableProcessors)
+      val maxPoolSize = if (config.getMaximumPoolSize > 0) config.getMaximumPoolSize else 10
+      Math.min(maxPoolSize, Runtime.getRuntime.availableProcessors)
+    }
+
     for {
       ce <- ExecutionContexts.fixedThreadPool[F](threadPoolSize)
       xa <- HikariTransactor.fromHikariConfig[F](config, ce, be)
