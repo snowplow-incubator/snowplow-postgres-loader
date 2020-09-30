@@ -20,10 +20,9 @@ import com.zaxxer.hikari.HikariConfig
 import doobie.hikari._
 import doobie.implicits._
 import doobie.util.ExecutionContexts
-import doobie.util.log.LogHandler
 import doobie.util.transactor.Transactor
-
 import io.circe.Json
+import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.client.Client
 
@@ -33,23 +32,21 @@ import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
 
 object resources {
 
+  private lazy val logger = getLogger
+
   /** Initialise Blocking Thread Pool, Connection Pool, DB state and bad queue resources */
-  def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: DBConfig, logger: LogHandler, iglu: Client[F, Json]) =
+  def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: DBConfig, iglu: Client[F, Json]) =
     for {
       blocker <- Blocker[F]
       xa <- resources.getTransactor[F](DBConfig.hikariConfig(postgres), blocker)
-      state <- Resource.liftF(initializeState(postgres.schema, logger, iglu, xa))
+      state <- Resource.liftF(initializeState(postgres.schema, iglu, xa))
     } yield (blocker, xa, state)
 
-  def initializeState[F[_]: Concurrent: Clock](schema: String,
-                                               logger: LogHandler,
-                                               iglu: Client[F, Json],
-                                               xa: HikariTransactor[F]
-  ): F[State[F]] =
+  def initializeState[F[_]: Concurrent: Clock](schema: String, iglu: Client[F, Json], xa: HikariTransactor[F]): F[State[F]] =
     for {
-      ci <- storage.query.getComments(schema, logger).transact(xa).map(_.separate)
+      ci <- storage.query.getComments(schema).transact(xa).map(_.separate)
       (issues, comments) = ci
-      _ <- issues.traverse_(issue => Sync[F].delay(println(issue)))
+      _ <- issues.traverse_(issue => Sync[F].delay(logger.warn(issue.show)))
       initState = State.init[F](comments, iglu.resolver).value.flatMap {
         case Left(error) =>
           val exception = new RuntimeException(s"Couldn't initalise the state $error")
@@ -69,6 +66,7 @@ object resources {
       val maxPoolSize = if (config.getMaximumPoolSize > 0) config.getMaximumPoolSize else 10
       Math.min(maxPoolSize, Runtime.getRuntime.availableProcessors)
     }
+    logger.debug(s"Using thread pool of size $threadPoolSize for Hikari transactor")
 
     for {
       ce <- ExecutionContexts.fixedThreadPool[F](threadPoolSize)

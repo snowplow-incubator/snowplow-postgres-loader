@@ -15,7 +15,7 @@ package com.snowplowanalytics.snowplow.postgres.streaming
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.{Blocker, Clock, ContextShift, Sync}
+import cats.effect.{Clock, ContextShift, Sync}
 
 import fs2.Pipe
 
@@ -23,6 +23,7 @@ import doobie._
 import doobie.implicits._
 
 import io.circe.Json
+import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
@@ -32,8 +33,12 @@ import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor}
 import com.snowplowanalytics.snowplow.postgres.api.{DB, State}
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, transform}
 import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
+import com.snowplowanalytics.snowplow.postgres.logging.Slf4jLogHandler
 
 object sink {
+
+  private lazy val logger = getLogger
+  private lazy val logHandler = Slf4jLogHandler(logger)
 
   type Insert = ConnectionIO[Unit]
 
@@ -59,10 +64,10 @@ object sink {
     }
 
   /** Sink bad data coming directly into the `Pipe` */
-  def badSink[F[_]: Sync: ContextShift](blocker: Blocker): Pipe[F, BadData, Unit] =
+  def badSink[F[_]: Sync: ContextShift]: Pipe[F, BadData, Unit] =
     _.evalMap {
-      case BadData.BadEnriched(row)        => blocker.delay[F, Unit](println(row.compact))
-      case BadData.BadJson(payload, error) => blocker.delay[F, Unit](println(s"Cannot parse $payload. $error"))
+      case BadData.BadEnriched(row)        => Sync[F].delay(logger.warn(row.compact))
+      case BadData.BadJson(payload, error) => Sync[F].delay(logger.warn(s"Cannot parse $payload. $error"))
     }
 
   /** Implementation for [[goodSink]] */
@@ -95,7 +100,7 @@ object sink {
     * Build an `INSERT` action for a single entity
     * Multiple inserts later can be combined into a transaction
     */
-  def insertStatement(logger: LogHandler, schema: String, row: Entity): Insert = {
+  def insertStatement(schema: String, row: Entity): Insert = {
     val length = row.columns.length
 
     val columns = Fragment.const0(row.columns.map(c => s"""\"${c.name}\"""").mkString(","))
@@ -106,7 +111,7 @@ object sink {
       case (acc, (cur, _))                   => acc ++ cur.value.fragment
     }
 
-    fr"""INSERT INTO $table ($columns) VALUES ($values)""".update(logger).run.void
+    fr"""INSERT INTO $table ($columns) VALUES ($values)""".update(logHandler).run.void
   }
 
 }

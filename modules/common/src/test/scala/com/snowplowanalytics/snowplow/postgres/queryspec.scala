@@ -36,14 +36,14 @@ class queryspec extends Database {
   "tableExists" should {
     "return false if table does not exist" >> {
       val expected = false
-      val result = query.tableExists("empty", "non-existent", Database.logger).transact(Database.xa).unsafeRunSync()
+      val result = query.tableExists("empty", "non-existent").transact(Database.xa).unsafeRunSync()
 
       result must beEqualTo(expected)
     }
 
     "return true if table exists (created by Database.before)" >> {
       val expected = true
-      val result = query.tableExists(Database.Schema, "events", Database.logger).transact(Database.xa).unsafeRunSync()
+      val result = query.tableExists(Database.Schema, "events").transact(Database.xa).unsafeRunSync()
 
       result must beEqualTo(expected)
     }
@@ -52,7 +52,7 @@ class queryspec extends Database {
   "getComments" should {
     "not fail if schema does not exist" >> {
       val expected = List()
-      val result = query.getComments("empty", Database.logger).transact(Database.xa).unsafeRunSync()
+      val result = query.getComments("empty").transact(Database.xa).unsafeRunSync()
       result must beEqualTo(expected)
     }
   }

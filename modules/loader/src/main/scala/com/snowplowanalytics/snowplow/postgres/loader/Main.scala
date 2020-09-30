@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.postgres.loader
 
 import cats.effect.{ExitCode, IO, IOApp}
 
-import doobie.util.log.LogHandler
+import org.log4s.getLogger
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 import com.snowplowanalytics.snowplow.postgres.api.DB
@@ -27,34 +27,35 @@ import com.snowplowanalytics.snowplow.postgres.streaming.{UnorderedPipe, sink, s
 
 object Main extends IOApp {
 
+  lazy val logger = getLogger
+
   val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   def run(args: List[String]): IO[ExitCode] =
     Cli.parse[IO](args).value.flatMap {
-      case Right(Cli(loaderConfig, iglu, debug)) =>
-        val logger = if (debug) LogHandler.jdkLogHandler else LogHandler.nop
-        resources.initialize[IO](loaderConfig.getDBConfig, logger, iglu).use {
+      case Right(Cli(loaderConfig, iglu)) =>
+        resources.initialize[IO](loaderConfig.getDBConfig, iglu).use {
           case (blocker, xa, state) =>
             source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.source) match {
               case Right(dataStream) =>
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, logger, loaderConfig.schema)
+                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.schema)
                 for {
                   _ <- loaderConfig.purpose match {
-                    case Purpose.Enriched       => utils.prepare[IO](loaderConfig.schema, xa, logger)
+                    case Purpose.Enriched       => utils.prepare[IO](loaderConfig.schema, xa)
                     case Purpose.SelfDescribing => IO.unit
                   }
-                  badSink = sink.badSink[IO](blocker)
+                  badSink = sink.badSink[IO]
                   goodSink = sink.goodSink[IO](UnorderedPipe.forTransactor(xa), state, iglu, processor).andThen(_.through(badSink))
                   s = dataStream.observeEither(badSink, goodSink)
 
                   _ <- s.compile.drain
                 } yield ExitCode.Success
               case Left(error) =>
-                IO.delay(System.err.println(s"Source initialization error\n${error.getMessage}")).as(ExitCode.Error)
+                IO.delay(logger.error(s"Source initialization error\n${error.getMessage}")).as(ExitCode.Error)
             }
         }
 
       case Left(error) =>
-        IO.delay(System.err.println(s"Configuration initialization failure\n$error")).as(ExitCode.Error)
+        IO.delay(logger.error(s"Configuration initialization failure\n$error")).as(ExitCode.Error)
     }
 }

@@ -46,8 +46,7 @@ class CliSpec extends Specification {
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
-        case Cli(config, _, false) => config must beEqualTo(expected)
-        case Cli(_, _, true)       => ko("Unexpected debug flag")
+        case Cli(config, _) => config must beEqualTo(expected)
       }
     }
   }

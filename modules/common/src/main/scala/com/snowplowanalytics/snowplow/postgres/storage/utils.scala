@@ -16,25 +16,27 @@ import cats.Monad
 import cats.implicits._
 
 import cats.effect.Sync
+import org.log4s.getLogger
 
 import doobie.ConnectionIO
 import doobie.implicits._
 import doobie.util.transactor.Transactor
-import doobie.util.log.LogHandler
 
 import query.tableExists
 
 object utils {
 
-  def prepareEventsTable(schema: String, logger: LogHandler): ConnectionIO[Boolean] = {
-    val create = ddl.createEventsTable(schema, logger).as(false)
+  private lazy val logger = getLogger
+
+  def prepareEventsTable(schema: String): ConnectionIO[Boolean] = {
+    val create = ddl.createEventsTable(schema).as(false)
     val exists = Monad[ConnectionIO].pure(true)
-    Monad[ConnectionIO].ifM(tableExists(schema, "events", logger))(exists, create)
+    Monad[ConnectionIO].ifM(tableExists(schema, "events"))(exists, create)
   }
 
-  def prepare[F[_]: Sync](schema: String, xa: Transactor[F], logger: LogHandler): F[Unit] =
-    prepareEventsTable(schema, logger).transact(xa).flatMap {
-      case true  => Sync[F].delay(println(s"$schema.events table already exists"))
-      case false => Sync[F].delay(println(s"$schema.events table created"))
+  def prepare[F[_]: Sync](schema: String, xa: Transactor[F]): F[Unit] =
+    prepareEventsTable(schema).transact(xa).flatMap {
+      case true  => Sync[F].delay(logger.info(s"$schema.events table already exists"))
+      case false => Sync[F].delay(logger.info(s"$schema.events table created"))
     }
 }

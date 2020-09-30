@@ -25,7 +25,6 @@ lazy val common = project
   .settings(
     resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(
-      Dependencies.logger,
       Dependencies.postgres,
       Dependencies.catsEffect,
       Dependencies.circe,
@@ -37,6 +36,8 @@ lazy val common = project
       Dependencies.doobiePg,
       Dependencies.doobiePgCirce,
       Dependencies.doobieHikari,
+      Dependencies.log4s,
+      Dependencies.logback,
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,
