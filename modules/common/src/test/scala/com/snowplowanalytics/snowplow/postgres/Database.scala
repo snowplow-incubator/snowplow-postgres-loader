@@ -31,7 +31,7 @@ trait Database extends Specification with BeforeAfterEach {
   implicit val ioClock: Clock[IO] = Clock.create[IO]
 
   def before =
-    (dropAll *> storage.utils.prepare[IO](Schema, xa, logger)).unsafeRunSync()
+    (dropAll *> storage.utils.prepare[IO](Schema, xa)).unsafeRunSync()
 
   def after =
     dropAll.unsafeRunSync()
@@ -44,7 +44,6 @@ object Database {
 
   val Schema = "public"
 
-  val logger: LogHandler = LogHandler.nop
   implicit val CS: ContextShift[IO] = IO.contextShift(concurrent.ExecutionContext.global)
 
   val jdbcUri = JdbcUri("localhost", 5432, "snowplow", "allow")

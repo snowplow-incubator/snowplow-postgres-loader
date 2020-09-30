@@ -17,7 +17,7 @@ import cats.implicits._
 
 import cats.effect.{Clock, Sync}
 
-import doobie.{ConnectionIO, LogHandler}
+import doobie.ConnectionIO
 import doobie.implicits._
 import doobie.util.fragment.Fragment
 
@@ -40,28 +40,23 @@ object ddl {
   type Generator = DdlSchemaList => Fragment
 
   def createTable[F[_]: Sync: Clock](resolver: Resolver[F],
-                                     logger: LogHandler,
                                      schema: String,
                                      entity: SchemaKey,
                                      meta: Boolean
   ): EitherT[F, IgluErrors, Insert] = {
     val generator: Generator = schemaList => sql.createTable(schema, entity, schemaList, meta)
-    manage(resolver, logger, schema, entity, generator)
+    manage(resolver, schema, entity, generator)
   }
 
   // TODO: tables need to be updated in transaction, because situation where one node tries to mutate it after its state
   //       been update are completely predictable
-  def alterTable[F[_]: Sync: Clock](resolver: Resolver[F],
-                                    logger: LogHandler,
-                                    schema: String,
-                                    entity: SchemaKey
-  ): EitherT[F, IgluErrors, Insert] = {
+  def alterTable[F[_]: Sync: Clock](resolver: Resolver[F], schema: String, entity: SchemaKey): EitherT[F, IgluErrors, Insert] = {
     val generator: Generator = schemaList => sql.migrateTable(schema, entity, schemaList)
-    manage(resolver, logger, schema, entity, generator)
+    manage(resolver, schema, entity, generator)
   }
 
-  def createEventsTable(schema: String, logger: LogHandler): ConnectionIO[Unit] =
-    definitions.atomicSql(schema).update(logger).run.void
+  def createEventsTable(schema: String): ConnectionIO[Unit] =
+    definitions.atomicSql(schema).update().run.void
 
   /**
     * Perform some DB management: create or mutate the table according to current
@@ -74,7 +69,6 @@ object ddl {
    * Note that it doesn't actually perform a DB action (no `Transactor`)
     *
    * @param resolver Iglu Resolver tied to Iglu Server (it needs schema list endpoint)
-    * @param logger doobie logger
     * @param schema database schema
     * @param entity an actual shredded entity that we manage tables for
     * @param generator a function generating SQL from `DdlSchemaList`
@@ -82,7 +76,6 @@ object ddl {
     *         or doobie IO
     */
   def manage[F[_]: Sync: Clock](resolver: Resolver[F],
-                                logger: LogHandler,
                                 schema: String,
                                 origin: SchemaKey,
                                 generator: Generator
@@ -98,8 +91,8 @@ object ddl {
         DdlSchemaList.fromSchemaList(list, fetch[F](resolver)).leftMap(IgluErrors.of).map { list =>
           val statement = generator(list)
           val tableName = getTableName(origin)
-          statement.update(logger).run.void *>
-            sql.commentTable(logger, schema, tableName, list.latest)
+          statement.update().run.void *>
+            sql.commentTable(schema, tableName, list.latest)
         }
       }
   }

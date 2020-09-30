@@ -18,7 +18,6 @@ import cats.implicits._
 import cats.effect.{Bracket, Clock, Sync}
 
 import doobie.implicits._
-import doobie.util.log.LogHandler
 import doobie.util.transactor.Transactor
 
 import com.snowplowanalytics.iglu.core.SchemaKey
@@ -86,18 +85,18 @@ object DB {
     }
   }
 
-  def interpreter[F[_]: Sync: Clock](resolver: Resolver[F], xa: Transactor[F], logger: LogHandler, schemaName: String): DB[F] =
+  def interpreter[F[_]: Sync: Clock](resolver: Resolver[F], xa: Transactor[F], schemaName: String): DB[F] =
     new DB[F] {
       def insert(event: List[Entity]): F[Unit] =
-        event.traverse_(sink.insertStatement(logger, schemaName, _)).transact(xa)
+        event.traverse_(sink.insertStatement(schemaName, _)).transact(xa)
 
       def alter(schemaKey: SchemaKey): F[Unit] = {
-        val result = ddl.alterTable[F](resolver, logger, schemaName, schemaKey)
+        val result = ddl.alterTable[F](resolver, schemaName, schemaKey)
         rethrow(result.semiflatMap(_.transact(xa)))
       }
 
       def create(schemaKey: SchemaKey, includeMeta: Boolean): F[Unit] = {
-        val result = ddl.createTable[F](resolver, logger, schemaName, schemaKey, includeMeta)
+        val result = ddl.createTable[F](resolver, schemaName, schemaKey, includeMeta)
         rethrow(result.semiflatMap(_.transact(xa)))
       }
 

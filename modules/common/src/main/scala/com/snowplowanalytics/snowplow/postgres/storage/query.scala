@@ -18,14 +18,17 @@ import cats.instances.list._
 
 import doobie.ConnectionIO
 import doobie.implicits._
-import doobie.util.log.LogHandler
+import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.SchemaKey
+import com.snowplowanalytics.snowplow.postgres.logging.Slf4jLogHandler
 
 /** Functions to query the storage for state and metadata */
 object query {
 
-  def tableExists(schema: String, name: String, logger: LogHandler): ConnectionIO[Boolean] =
+  private lazy val logger = Slf4jLogHandler(getLogger)
+
+  def tableExists(schema: String, name: String): ConnectionIO[Boolean] =
     fr"SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = $name AND table_schema = $schema);"
       .queryWithLogHandler[Boolean](logger)
       .unique
@@ -33,7 +36,7 @@ object query {
   def listTables(schema: String): ConnectionIO[List[String]] =
     fr"SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = $schema".query[String].to[List]
 
-  def getComment(schema: String, logger: LogHandler)(tableName: String): ConnectionIO[Either[CommentIssue, SchemaKey]] =
+  def getComment(schema: String)(tableName: String): ConnectionIO[Either[CommentIssue, SchemaKey]] =
     (fr"""SELECT obj_description(oid) FROM pg_class WHERE relkind = 'r' AND relnamespace = (
             SELECT oid
             FROM pg_catalog.pg_namespace
@@ -51,6 +54,6 @@ object query {
           CommentIssue.Missing(tableName).asLeft
       }
 
-  def getComments(schema: String, logger: LogHandler): ConnectionIO[List[Either[CommentIssue, SchemaKey]]] =
-    listTables(schema).flatMap(_.traverse(getComment(schema, logger)))
+  def getComments(schema: String): ConnectionIO[List[Either[CommentIssue, SchemaKey]]] =
+    listTables(schema).flatMap(_.traverse(getComment(schema)))
 }

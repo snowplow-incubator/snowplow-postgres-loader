@@ -19,9 +19,9 @@ object Dependencies {
 
   object V {
     // Java
-    val slf4j        = "1.7.30"
     val postgres     = "42.2.14"
     val commons      = "1.13"
+    val logback      = "1.2.3"
 
     // Scala third-party
     val decline      = "1.2.0"
@@ -31,6 +31,7 @@ object Dependencies {
     val fs2PubSub    = "0.15.0"
     val doobie       = "0.9.0"
     val fs2          = "2.4.2"
+    val log4s        = "1.8.2"
 
     val analyticsSdk = "2.0.1"
     val badRows      = "2.0.0"
@@ -42,7 +43,7 @@ object Dependencies {
   }
 
   // Java
-  val logger        = "org.slf4j"      % "slf4j-simple"           % V.slf4j
+  val logback       = "ch.qos.logback" % "logback-classic"        % V.logback
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
@@ -64,6 +65,7 @@ object Dependencies {
   val doobiePg      = "org.tpolecat"  %% "doobie-postgres"        % V.doobie
   val doobiePgCirce = "org.tpolecat"  %% "doobie-postgres-circe"  % V.doobie
   val doobieHikari  = "org.tpolecat"  %% "doobie-hikari"          % V.doobie
+  val log4s         = "org.log4s"     %% "log4s"                  % V.log4s
 
   // Scala first-party
   val analyticsSdk = "com.snowplowanalytics" %% "snowplow-scala-analytics-sdk" % V.analyticsSdk

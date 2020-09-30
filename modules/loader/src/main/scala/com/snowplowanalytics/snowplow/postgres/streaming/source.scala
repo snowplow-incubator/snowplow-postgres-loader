@@ -25,6 +25,7 @@ import fs2.aws.kinesis.consumer.readFromKinesisStream
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 import io.circe.Json
 import io.circe.parser.{parse => parseCirce}
+import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
@@ -41,6 +42,8 @@ import com.permutive.pubsub.consumer.Model.{ProjectId, Subscription}
 import com.permutive.pubsub.consumer.decoder.MessageDecoder
 
 object source {
+
+  private lazy val logger = getLogger
 
   /**
     * Acquire a stream of parsed payloads
@@ -120,9 +123,9 @@ object source {
 
   def pubsubErrorHandler[F[_]: Sync](message: PubsubMessage, error: Throwable, ack: F[Unit], nack: F[Unit]): F[Unit] = {
     val _ = (error, nack)
-    Sync[F].delay(println(s"Couldn't handle ${message.getData.toStringUtf8}")) *> ack
+    Sync[F].delay(logger.warn(s"Couldn't handle ${message.getData.toStringUtf8}")) *> ack
   }
 
   def pubsubOnFailedTerminate[F[_]: Sync](error: Throwable): F[Unit] =
-    Sync[F].delay(println(s"Cannot terminate pubsub consumer properly\n${error.getMessage}"))
+    Sync[F].delay(logger.warn(s"Cannot terminate pubsub consumer properly\n${error.getMessage}"))
 }

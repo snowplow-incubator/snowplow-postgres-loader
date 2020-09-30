@@ -35,7 +35,7 @@ import com.monovore.decline._
 
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 
-case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json], debug: Boolean)
+case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json])
 
 object Cli {
 
@@ -60,7 +60,7 @@ object Cli {
           .toEitherT[F]
       _ <- igluClient.check(configData).leftMap(e => s"Iglu validation failed with following error\n: ${e.asJson.spaces2}")
       appConfig <- configData.data.as[LoaderConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
-    } yield Cli(appConfig, igluClient, rawConfig.debug)
+    } yield Cli(appConfig, igluClient)
 
   /** Config files for Loader can be passed either as FS path
     * or as base64-encoded JSON (if `--base64` is provided) */
@@ -109,19 +109,12 @@ object Cli {
     )
     .orFalse
 
-  val debug = Opts
-    .flag(
-      long = "debug",
-      help = "Show verbose SQL logging"
-    )
-    .orFalse
-
   /** Temporary, pure config */
-  private case class RawConfig(config: PathOrJson, resolver: PathOrJson, debug: Boolean)
+  private case class RawConfig(config: PathOrJson, resolver: PathOrJson)
 
   private val command: Command[RawConfig] =
-    Command[(String, String, Boolean, Boolean)](BuildInfo.name, BuildInfo.version)((config, resolver, base64, debug).tupled).mapValidated {
-      case (cfg, res, enc, deb) =>
-        (PathOrJson.parse(cfg, enc), PathOrJson.parse(res, enc), deb.validNel).mapN(RawConfig.apply)
+    Command[(String, String, Boolean)](BuildInfo.name, BuildInfo.version)((config, resolver, base64).tupled).mapValidated {
+      case (cfg, res, enc) =>
+        (PathOrJson.parse(cfg, enc), PathOrJson.parse(res, enc)).mapN(RawConfig.apply)
     }
 }

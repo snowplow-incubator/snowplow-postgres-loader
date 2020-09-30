@@ -17,7 +17,7 @@ import cats.syntax.functor._
 import doobie.Fragment
 import doobie.free.connection.ConnectionIO
 import doobie.implicits._
-import doobie.util.log.LogHandler
+import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.{SchemaKey, SchemaMap}
 
@@ -28,8 +28,11 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.{FlatSchema, Migration, S
 
 import com.snowplowanalytics.snowplow.postgres.shredding.transform.Atomic
 import com.snowplowanalytics.snowplow.postgres.shredding.{Type, schema, transform}
+import com.snowplowanalytics.snowplow.postgres.logging.Slf4jLogHandler
 
 object sql {
+
+  private lazy val logger = Slf4jLogHandler(getLogger)
 
   val DefaultVarcharSize = 4096
 
@@ -61,7 +64,7 @@ object sql {
     Fragment.const(s"CREATE TABLE $table (\n${columns.mkString(",\n")}\n)")
   }
 
-  def commentTable(logger: LogHandler, schema: String, tableName: String, schemaKey: SchemaMap): ConnectionIO[Unit] = {
+  def commentTable(schema: String, tableName: String, schemaKey: SchemaMap): ConnectionIO[Unit] = {
     val uri = schemaKey.schemaKey.toSchemaUri
     val table = s"$schema.$tableName"
     Fragment.const(s"COMMENT ON TABLE $table IS '$uri'").update(logger).run.void
