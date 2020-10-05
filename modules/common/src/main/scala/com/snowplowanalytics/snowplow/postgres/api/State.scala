@@ -16,7 +16,7 @@ import cats.Monad
 import cats.data.EitherT
 import cats.implicits._
 
-import cats.effect.concurrent.{MVar, Ref}
+import cats.effect.concurrent.{MVar2, MVar, Ref}
 import cats.effect.{Bracket, Clock, Concurrent}
 import cats.effect.implicits._
 
@@ -33,7 +33,7 @@ import com.snowplowanalytics.snowplow.postgres.api.DB.StateCheck
   * Mutable variable, protected by by lock.
   * [[checkAndRun]] is the only function that should be able to mutate this structure
   */
-final class State[F[_]](lock: MVar[F, Unit], state: Ref[F, SchemaState]) {
+final class State[F[_]](lock: MVar2[F, Unit], state: Ref[F, SchemaState]) {
 
   /**
     * Primary state-handling and the only state-mutation function.
@@ -79,7 +79,7 @@ final class State[F[_]](lock: MVar[F, Unit], state: Ref[F, SchemaState]) {
 object State {
   def init[F[_]: Concurrent: Clock](keys: List[SchemaKey], resolver: Resolver[F]): EitherT[F, LoaderIgluError, State[F]] =
     for {
-      lock <- EitherT.liftF[F, LoaderIgluError, MVar[F, Unit]](MVar[F].of(()))
+      lock <- EitherT.liftF[F, LoaderIgluError, MVar2[F, Unit]](MVar[F].of(()))
       state <- SchemaState.init[F](keys, resolver)
     } yield new State[F](lock, state)
 }

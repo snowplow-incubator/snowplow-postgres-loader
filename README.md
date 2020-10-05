@@ -9,8 +9,8 @@
 
 Assuming [Docker][docker] is installed:
 
-1. Add own `config.json` (specify connection and stream details)
-2. Add own `resolver.json` (all schemas must be on [Iglu Server][iglu-server])
+1. Add own [`config.json`][config] (specify connection and stream details)
+2. Add own [`resolver.json`][resolver] (all schemas must be on [Iglu Server 0.6.0+][iglu-server])
 3. Run the Docker image:
 
 ```bash
@@ -32,6 +32,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
+[config]: https://github.com/snowplow-incubator/snowplow-postgres-loader/blob/master/config/config.json
+[resolver]: https://github.com/snowplow-incubator/snowplow-postgres-loader/blob/master/config/resolver.json
 
 [docker]: https://www.docker.com/
 [iglu-server]: https://github.com/snowplow-incubator/iglu-server

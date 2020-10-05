@@ -25,16 +25,16 @@ object Dependencies {
 
     // Scala third-party
     val decline      = "1.2.0"
-    val catsEffect   = "2.1.2"
+    val catsEffect   = "2.2.0"
     val circe        = "0.13.0"
-    val fs2Aws       = "2.29.0"
-    val fs2PubSub    = "0.15.0"
-    val doobie       = "0.9.0"
-    val fs2          = "2.4.2"
+    val fs2Aws       = "3.0.2"
+    val fs2PubSub    = "0.16.1"
+    val doobie       = "0.9.2"
+    val fs2          = "2.4.4"
     val log4s        = "1.8.2"
 
     val analyticsSdk = "2.0.1"
-    val badRows      = "2.0.0"
+    val badRows      = "2.1.0"
     val schemaDdl    = "0.11.0"
 
     // Testing
