@@ -56,7 +56,7 @@ jobs:
         DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - name: Build and publish Docker image
-      run: sbt docker:publish
+      run: sbt "project loader" docker:publish
 
   deploy_common:
     needs: test
