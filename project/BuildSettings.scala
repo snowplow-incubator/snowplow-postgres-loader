@@ -62,8 +62,8 @@ object BuildSettings {
     bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
-    scmInfo := Some(ScmInfo(url("https://github.com/snowplow/snowplow"),
-      "scm:git@github.com:snowplow/snowplow.git")),
+    scmInfo := Some(ScmInfo(url("https://github.com/snowplow-incubator/snowplow-postgres-loader"),
+      "scm:git@github.com:snowplow-incubator/snowplow-postgres-loader.git")),
     pomExtra := (
       <developers>
         <developer>
