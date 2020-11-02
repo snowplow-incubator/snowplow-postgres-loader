@@ -185,7 +185,7 @@ object transform {
 
   def cast(json: Option[Json], dataType: Type): Either[String, Option[Value]] = {
     val error = s"Invalid type ${dataType.ddl} for value $json".asLeft[Option[Value]]
-    json match {
+    json.filterNot(_.isNull) match {
       case Some(j) =>
         dataType match {
           case Type.Uuid =>
