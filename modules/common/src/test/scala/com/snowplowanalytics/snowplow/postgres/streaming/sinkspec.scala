@@ -62,7 +62,7 @@ class sinkspec extends Database {
     }
 
     "sink a single self-describing JSON" >> {
-      val row = json"""{"schema":"iglu:com.getvero/bounced/jsonschema/1-0-0","data":{"bounce_type":"one"}}"""
+      val row = json"""{"schema":"iglu:com.getvero/bounced/jsonschema/1-0-0","data":{"bounce_type":"one","bounce_code":null}}"""
       val json = SelfDescribingData.parse(row).getOrElse(throw new RuntimeException("Invalid SelfDescribingData"))
       val stream = Stream.emit[IO, Data](Data.SelfDescribing(json))
 
