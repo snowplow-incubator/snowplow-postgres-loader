@@ -33,7 +33,7 @@ object Dependencies {
     val fs2          = "2.4.4"
     val log4s        = "1.8.2"
 
-    val analyticsSdk = "2.0.1"
+    val analyticsSdk = "2.1.0"
     val badRows      = "2.1.0"
     val schemaDdl    = "0.11.0"
 
