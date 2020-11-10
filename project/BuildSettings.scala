@@ -33,7 +33,7 @@ object BuildSettings {
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    version := "0.1.0",
+    version := "0.1.1",
     scalaVersion := scala213,
     crossScalaVersions := Seq(scala212, scala213),
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
