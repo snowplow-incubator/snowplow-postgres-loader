@@ -268,7 +268,7 @@ object transform {
     removeRoots(properties).map {
       case (pointer, s: Schema) =>
         val columnName: String = FlatSchema.getName(pointer)
-        val pgType = Type.getDataType(s, 4096, columnName, Type.dataTypeSuggestions)
+        val pgType = Type.getDataType(s, Type.dataTypeSuggestions)
         (pointer, columnName, pgType, schema.canBeNull(s))
     }
 
