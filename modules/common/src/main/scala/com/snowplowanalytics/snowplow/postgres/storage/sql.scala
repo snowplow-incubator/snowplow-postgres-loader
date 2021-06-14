@@ -34,8 +34,6 @@ object sql {
 
   private lazy val logger = Slf4jLogHandler(getLogger)
 
-  val DefaultVarcharSize = 4096
-
   /**
     * Generate the `CREATE TABLE` DDL statement
     * @param schema database schema
@@ -83,7 +81,7 @@ object sql {
             if (migration.diff.added.nonEmpty) {
               val columns = migration.diff.added.map {
                 case (pointer, schema) =>
-                  buildColumn(DefaultVarcharSize, (pointer, schema))
+                  buildColumn(pointer, schema)
               }
 
               val columnFragments = columns.foldLeft(Fragment.empty) { (acc, cur) =>
@@ -103,18 +101,15 @@ object sql {
   /**
     * Generate single ALTER TABLE statement for some new property
     *
-   * @param varcharSize default size for VARCHAR
-    * @param pair pair of property name and its Schema properties like
-    *             length, maximum, etc
+    * @param pointer the property pointer
+    * @param properties the property's schema, like length, maximum etc
     * @return DDL statement altering single column in table
     */
-  def buildColumn(varcharSize: Int, pair: (Pointer.SchemaPointer, Schema)): Column =
-    pair match {
-      case (pointer, properties) =>
-        val columnName = FlatSchema.getName(pointer)
-        val dataType = Type.getDataType(properties, varcharSize, columnName, Type.dataTypeSuggestions)
-        Column(columnName, dataType, schema.canBeNull(properties))
-    }
+  def buildColumn(pointer: Pointer.SchemaPointer, properties: Schema): Column = {
+    val columnName = FlatSchema.getName(pointer)
+    val dataType = Type.getDataType(properties, Type.dataTypeSuggestions)
+    Column(columnName, dataType, schema.canBeNull(properties))
+  }
 
   case class Column(name: String, dataType: Type, nullable: Boolean) {
 
