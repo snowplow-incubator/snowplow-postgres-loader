@@ -21,8 +21,6 @@ import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.CommonProperti
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.NumberProperty.{Maximum, MultipleOf}
 import com.snowplowanalytics.iglu.schemaddl.jsonschema.properties.StringProperty.{Format, MaxLength, MinLength}
 
-import com.snowplowanalytics.snowplow.postgres.loader._
-
 sealed trait Type {
   def ddl: String =
     this match {
@@ -52,21 +50,23 @@ object Type {
   case object Bool extends Type
   case object Jsonb extends Type
 
-  type DataTypeSuggestion = (Schema, String) => Option[Type]
+  type DataTypeSuggestion = Schema => Option[Type]
+
+  val DefaultVarcharSize = 4096
 
   /** Derive a Postgres type, given JSON Schema */
-  def getDataType(properties: Schema, varcharSize: Int, columnName: String, suggestions: List[DataTypeSuggestion]): Type =
+  def getDataType(properties: Schema, suggestions: List[DataTypeSuggestion]): Type =
     suggestions match {
-      case Nil => Type.Varchar(4096) // Generic
+      case Nil => Type.Varchar(DefaultVarcharSize) // Generic
       case suggestion :: tail =>
-        suggestion(properties, columnName) match {
+        suggestion(properties) match {
           case Some(format) => format
-          case None         => getDataType(properties, varcharSize, columnName, tail)
+          case None         => getDataType(properties, tail)
         }
     }
 
   // For complex enums Suggest VARCHAR with length of longest element
-  val complexEnumSuggestion: DataTypeSuggestion = (properties, _) =>
+  val complexEnumSuggestion: DataTypeSuggestion = properties =>
     properties.enum match {
       case Some(enums) if isComplexEnum(enums.value) =>
         val longest = excludeNull(enums.value).map(_.noSpaces.length).maximumOption.getOrElse(16)
@@ -74,39 +74,32 @@ object Type {
       case _ => None
     }
 
-  val productSuggestion: DataTypeSuggestion = (properties, _) =>
+  val productSuggestion: DataTypeSuggestion = properties =>
     properties.`type` match {
       case Some(t: SType.Union) if t.isUnion =>
         Some(Type.Jsonb)
-      case Some(t: SType) if t === (SType.Array: SType) =>
+      case Some(SType.Array) =>
         Some(Type.Jsonb)
       case Some(SType.Union(types)) if types.contains(SType.Array) =>
         Some(Type.Jsonb)
       case _ => None
     }
 
-  val timestampSuggestion: DataTypeSuggestion = (properties, _) =>
+  val timestampSuggestion: DataTypeSuggestion = properties =>
     (properties.`type`, properties.format) match {
       case (Some(types), Some(Format.DateTimeFormat)) if types.possiblyWithNull(SType.String) =>
         Some(Type.Timestamp)
       case _ => None
     }
 
-  val dateSuggestion: DataTypeSuggestion = (properties, _) =>
+  val dateSuggestion: DataTypeSuggestion = properties =>
     (properties.`type`, properties.format) match {
       case (Some(types), Some(Format.DateFormat)) if types.possiblyWithNull(SType.String) =>
         Some(Type.Date)
       case _ => None
     }
 
-  val arraySuggestion: DataTypeSuggestion = (properties, _) =>
-    properties.`type` match {
-      case Some(types) if types.possiblyWithNull(SType.Array) =>
-        Some(Type.Varchar(4096))
-      case _ => None
-    }
-
-  val numberSuggestion: DataTypeSuggestion = (properties, _) =>
+  val numberSuggestion: DataTypeSuggestion = properties =>
     (properties.`type`, properties.multipleOf) match {
       case (Some(types), Some(MultipleOf.NumberMultipleOf(m))) if types.possiblyWithNull(SType.Number) && m === BigDecimal(1, 2) =>
         Some(Type.Double)
@@ -119,25 +112,23 @@ object Type {
     }
 
   // TODO: add more sizes
-  val integerSuggestion: DataTypeSuggestion = (properties, _) => {
-    (properties.`type`, properties.maximum, properties.enum, properties.multipleOf) match {
-      case (Some(types), Some(maximum), _, _) if types.possiblyWithNull(SType.Integer) =>
+  val integerSuggestion: DataTypeSuggestion = properties => {
+    (properties.`type`, properties.maximum, properties.multipleOf) match {
+      case (Some(types), Some(maximum), _) if types.possiblyWithNull(SType.Integer) =>
         if (isBigInt(maximum)) Type.BigInt.some
         else Type.Integer.some
-      case (Some(types), None, _, _) if types.possiblyWithNull(SType.Integer) =>
+      case (Some(types), None, _) if types.possiblyWithNull(SType.Integer) =>
         Type.BigInt.some
       // Contains only enum
-      case (types, _, Some(_), _) if types.isEmpty || types.get.possiblyWithNull(SType.Integer) =>
+      case (Some(types), _, _) if types.possiblyWithNull(SType.Integer) =>
         Type.Integer.some
-      case (Some(types), _, _, _) if types.possiblyWithNull(SType.Integer) =>
-        Type.Integer.some
-      case (_, _, _, Some(MultipleOf.IntegerMultipleOf(_))) =>
+      case (_, _, Some(MultipleOf.IntegerMultipleOf(_))) =>
         Type.Integer.some
       case _ => None
     }
   }
 
-  val charSuggestion: DataTypeSuggestion = (properties, _) => {
+  val charSuggestion: DataTypeSuggestion = properties => {
     (properties.`type`, properties.minLength, properties.maxLength) match {
       case (Some(types), Some(MinLength(min)), Some(MaxLength(max))) if min === max && types.possiblyWithNull(SType.String) =>
         Some(Type.Char(min.toInt))
@@ -145,14 +136,14 @@ object Type {
     }
   }
 
-  val booleanSuggestion: DataTypeSuggestion = (properties, _) => {
+  val booleanSuggestion: DataTypeSuggestion = properties => {
     properties.`type` match {
       case Some(types) if types.possiblyWithNull(SType.Boolean) => Some(Type.Bool)
       case _                                                    => None
     }
   }
 
-  val uuidSuggestion: DataTypeSuggestion = (properties, _) => {
+  val uuidSuggestion: DataTypeSuggestion = properties => {
     (properties.`type`, properties.format) match {
       case (Some(types), Some(Format.UuidFormat)) if types.possiblyWithNull(SType.String) =>
         Some(Type.Uuid)
@@ -160,14 +151,26 @@ object Type {
     }
   }
 
-  val varcharSuggestion: DataTypeSuggestion = (properties, _) => {
-    (properties.`type`, properties.maxLength, properties.enum, properties.format) match {
-      case (Some(types), Some(maxLength), _, _) if types.possiblyWithNull(SType.String) =>
+  val varcharSuggestion: DataTypeSuggestion = properties => {
+    (properties.`type`, properties.maxLength, properties.format) match {
+      case (Some(types), Some(maxLength), _) if types.possiblyWithNull(SType.String) =>
         Some(Type.Varchar(maxLength.value.toInt))
-      case (_, _, Some(enum), _) =>
+      case _ => None
+    }
+  }
+
+  val enumSuggestion: DataTypeSuggestion = properties => {
+    (properties.`type`, properties.enum) match {
+      case (Some(types), Some(_)) if types.possiblyWithNull(SType.Integer) =>
+        Some(Type.Integer)
+      case (Some(types), Some(_)) if types.possiblyWithNull(SType.Boolean) =>
+        Some(Type.Bool)
+      case (_, Some(e)) if e.value.nonEmpty && e.value.forall(_.asNumber.flatMap(_.toLong).isDefined) =>
+        Some(Type.Integer)
+      case (_, Some(e)) if e.value.nonEmpty && e.value.forall(_.asNumber.flatMap(_.toBigInt).isDefined) =>
+        Some(Type.BigInt)
+      case (_, Some(enum)) =>
         enum.value.map(jsonLength).maximumOption match {
-          case Some(maxLength) if enum.value.lengthCompare(1) === 0 =>
-            Some(Type.Varchar(maxLength))
           case Some(maxLength) =>
             Some(Type.Varchar(maxLength))
           case None => None
@@ -178,10 +181,10 @@ object Type {
 
   val dataTypeSuggestions: List[DataTypeSuggestion] = List(
     complexEnumSuggestion,
+    enumSuggestion,
     productSuggestion,
     timestampSuggestion,
     dateSuggestion,
-    arraySuggestion,
     integerSuggestion,
     numberSuggestion,
     booleanSuggestion,
