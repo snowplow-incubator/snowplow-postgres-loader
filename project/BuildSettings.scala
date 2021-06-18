@@ -18,8 +18,7 @@ import Keys._
 import sbtbuildinfo.BuildInfoKey
 import sbtbuildinfo.BuildInfoKeys._
 
-import bintray.BintrayPlugin._
-import bintray.BintrayKeys._
+import sbtdynver.DynVerPlugin.autoImport._
 
 import com.typesafe.sbt.SbtNativePackager.autoImport._
 import com.typesafe.sbt.packager.linux.LinuxPlugin.autoImport._
@@ -33,7 +32,6 @@ object BuildSettings {
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
-    version := "0.1.1",
     scalaVersion := scala213,
     crossScalaVersions := Seq(scala212, scala213),
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
@@ -49,7 +47,7 @@ object BuildSettings {
   /** Docker image settings */
   lazy val dockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow-docker-registry.bintray.io/snowplow/base-debian:0.2.1",
+    dockerBaseImage := "snowplow/base-debian:0.2.1",
     daemonUser in Docker := "snowplow",
     dockerUpdateLatest := true,
     dockerRepository := Some("snowplow"),
@@ -58,26 +56,25 @@ object BuildSettings {
     defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
   )
 
-  lazy val mavenSettings = bintraySettings ++ Seq(
-    publishMavenStyle := true,
+  lazy val mavenSettings = Seq(
     publishArtifact := true,
     publishArtifact in Test := false,
-    bintrayOrganization := Some("snowplow"),
-    bintrayRepository := "snowplow-maven",
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
-    scmInfo := Some(ScmInfo(url("https://github.com/snowplow-incubator/snowplow-postgres-loader"),
-      "scm:git@github.com:snowplow-incubator/snowplow-postgres-loader.git")),
-    pomExtra := (
-      <developers>
-        <developer>
-          <name>Snowplow Analytics Ltd</name>
-          <email>support@snowplowanalytics.com</email>
-          <organization>Snowplow Analytics Ltd</organization>
-          <organizationUrl>http://snowplowanalytics.com</organizationUrl>
-        </developer>
-      </developers>)
+    developers := List(
+      Developer(
+        "Snowplow Analytics Ltd",
+        "Snowplow Analytics Ltd",
+        "support@snowplowanalytics.com",
+        url("https://snowplowanalytics.com")
+      )
+    )
   )
+
+  lazy val dynVerSettings = Seq(
+    ThisBuild / dynverVTagPrefix := false, // Otherwise git tags required to have v-prefix
+    ThisBuild / dynverSeparator := "-" // to be compatible with docker
+    )
 
   lazy val scoverageSettings = Seq(
     coverageMinimum := 50,
