@@ -47,13 +47,13 @@ object BuildSettings {
   /** Docker image settings */
   lazy val dockerSettings = Seq(
     maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
-    dockerBaseImage := "snowplow/base-debian:0.2.1",
-    daemonUser in Docker := "snowplow",
+    dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
+    daemonUser in Docker := "daemon",
     dockerUpdateLatest := true,
     dockerRepository := Some("snowplow"),
 
     daemonUserUid in Docker := None,
-    defaultLinuxInstallLocation in Docker := "/home/snowplow", // must be home directory of daemonUser
+    defaultLinuxInstallLocation in Docker := "/opt/snowplow",
   )
 
   lazy val mavenSettings = Seq(
