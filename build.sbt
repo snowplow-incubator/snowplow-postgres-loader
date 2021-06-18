@@ -54,6 +54,7 @@ lazy val loader = project
   .settings(BuildSettings.dockerSettings)
   .settings(BuildSettings.buildInfoSettings)
   .settings(BuildSettings.addExampleConfToTestCp)
+  .settings(BuildSettings.assemblySettings)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.commons,
