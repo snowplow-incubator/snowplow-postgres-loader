@@ -1,6 +1,13 @@
-name: Test
+name: CI
 
-on: [push, pull_request]
+on:
+  push:
+    tags:
+      - '*'
+    branches:
+      - master
+      - develop
+  pull_request:
 
 jobs:
   test:
@@ -50,8 +57,6 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
-    - name: Compare SBT version with git tag
-      run: .github/check_tag.sh ${GITHUB_REF##*/}
     - name: Docker login
       run: docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       env:
@@ -70,15 +75,13 @@ jobs:
       uses: actions/setup-java@v1
       with:
         java-version: 1.8
-    - name: Compare SBT version with git tag
-      run: .github/check_tag.sh ${GITHUB_REF##*/}
-    - name: Deploy SCE on Bintray Maven and Maven Central
-      run: .github/deploy_common.sh
+    - name: Deploy common on Bintray Maven and Maven Central
+      run: sbt "project common" ci-release
       env:
-        SONA_USER: snowplow
-        SONA_PASS: ${{ secrets.SONA_PASS }}
-        BINTRAY_SNOWPLOW_MAVEN_USER: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_USER }}
-        BINTRAY_SNOWPLOW_MAVEN_API_KEY: ${{ secrets.BINTRAY_SNOWPLOW_MAVEN_API_KEY }}
+        PGP_PASSPHRASE: ${{ secrets.SONA_PGP_PASSPHRASE }}
+        PGP_SECRET: ${{ secrets.SONA_PGP_SECRET }}
+        SONATYPE_USERNAME: ${{ secrets.SONA_USER }}
+        SONATYPE_PASSWORD: ${{ secrets.SONA_PASS }}
 
   github_release:
     needs: test

@@ -15,8 +15,6 @@ import sbt._
 
 object Dependencies {
 
-  lazy val SnowplowBintray = "Snowplow Bintray" at "https://snowplow.bintray.com/snowplow-maven"
-
   object V {
     // Java
     val postgres     = "42.2.14"
