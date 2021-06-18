@@ -93,4 +93,21 @@ object BuildSettings {
       baseDirectory.value.getParentFile.getParentFile / "config"
     }
   )
+
+  /** sbt-assembly settings for building a fat jar */
+  import sbtassembly.AssemblyPlugin.autoImport._
+  lazy val assemblySettings = Seq(
+    assembly / assemblyJarName := { s"${moduleName.value}-${version.value}.jar" },
+    assembly / assemblyMergeStrategy := {
+      case "AUTHORS" => MergeStrategy.first
+      case x if x.endsWith("io.netty.versions.properties") => MergeStrategy.first
+      case x if x.endsWith("native-image.properties") => MergeStrategy.first
+      case x if x.endsWith("module-info.class") => MergeStrategy.first
+      case x if x.endsWith("reflection-config.json") => MergeStrategy.first
+      case x if x.startsWith("codegen-resources") => MergeStrategy.discard
+      case x =>
+        val oldStrategy = (assembly / assemblyMergeStrategy).value
+        oldStrategy(x)
+    }
+  )
 }
