@@ -22,8 +22,8 @@ lazy val common = project
   .settings(BuildSettings.projectSettings)
   .settings(BuildSettings.scoverageSettings)
   .settings(BuildSettings.mavenSettings)
+  .settings(BuildSettings.dynVerSettings)
   .settings(
-    resolvers += Dependencies.SnowplowBintray,
     libraryDependencies ++= Seq(
       Dependencies.postgres,
       Dependencies.catsEffect,
@@ -55,6 +55,7 @@ lazy val loader = project
   .settings(BuildSettings.buildInfoSettings)
   .settings(BuildSettings.addExampleConfToTestCp)
   .settings(BuildSettings.assemblySettings)
+  .settings(BuildSettings.dynVerSettings)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.commons,
