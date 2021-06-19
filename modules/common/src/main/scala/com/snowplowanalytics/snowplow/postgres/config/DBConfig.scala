@@ -13,6 +13,8 @@
 package com.snowplowanalytics.snowplow.postgres.config
 
 import com.zaxxer.hikari.HikariConfig
+import io.circe.Decoder
+import io.circe.generic.semiauto.deriveDecoder
 import DBConfig.JdbcUri
 
 case class DBConfig(host: String,
@@ -28,6 +30,9 @@ case class DBConfig(host: String,
 }
 
 object DBConfig {
+
+  implicit def dbConfigDecoder: Decoder[DBConfig] =
+    deriveDecoder[DBConfig]
 
   case class JdbcUri(host: String, port: Int, database: String, sslMode: String) {
     override def toString =
