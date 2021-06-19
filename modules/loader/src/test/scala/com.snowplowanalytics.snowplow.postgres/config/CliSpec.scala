@@ -27,7 +27,7 @@ class CliSpec extends Specification {
 
   "Cli.parse" should {
     "accept example config" >> {
-      val config = Paths.get(getClass.getResource("/config.json").toURI)
+      val config = Paths.get(getClass.getResource("/config.hocon.sample").toURI)
       val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
@@ -35,13 +35,15 @@ class CliSpec extends Specification {
         "Acme Ltd. Snowplow Postgres",
         UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
         Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon),
-        "localhost",
-        5432,
-        "snowplow",
-        "postgres",
-        "mysecretpassword",
-        "REQUIRE",
-        "atomic",
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
         Purpose.Enriched
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()

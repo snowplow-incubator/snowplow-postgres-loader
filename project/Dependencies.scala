@@ -25,11 +25,13 @@ object Dependencies {
     val decline      = "1.2.0"
     val catsEffect   = "2.2.0"
     val circe        = "0.13.0"
+    val circeConfig  = "0.8.0"
     val fs2Aws       = "3.0.2"
     val fs2PubSub    = "0.16.1"
     val doobie       = "0.9.2"
     val fs2          = "2.4.4"
     val log4s        = "1.8.2"
+    val config       = "1.4.1"
 
     val analyticsSdk = "2.1.0"
     val badRows      = "2.1.0"
@@ -42,6 +44,7 @@ object Dependencies {
 
   // Java
   val logback       = "ch.qos.logback" % "logback-classic"        % V.logback
+  val config        = "com.typesafe"   % "config"                 % V.config
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
@@ -56,6 +59,7 @@ object Dependencies {
   val circeGeneric  = "io.circe"      %% "circe-generic"          % V.circe
   val circeExtras   = "io.circe"      %% "circe-generic-extras"   % V.circe
   val circeParser   = "io.circe"      %% "circe-parser"           % V.circe
+  val circeConfig   = "io.circe"      %% "circe-config"           % V.circeConfig
   val circeLiteral  = "io.circe"      %% "circe-literal"          % V.circe
   val fs2Aws        = "io.laserdisc"  %% "fs2-aws"                % V.fs2Aws
   val fs2PubSub     = "com.permutive" %% "fs2-google-pubsub-grpc" % V.fs2PubSub
