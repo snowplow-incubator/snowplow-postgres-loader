@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
-import java.nio.file.{Files, InvalidPathException, Path, Paths}
+import java.nio.file.{InvalidPathException, Paths}
 import java.util.Base64
 
 import cats.data.{EitherT, ValidatedNel}
@@ -20,12 +20,13 @@ import cats.implicits._
 
 import cats.effect.{Clock, Sync}
 
-import io.circe.Json
-import io.circe.syntax._
-import io.circe.parser.{parse => jsonParse}
+import com.typesafe.config.{Config => LightbendConfig, ConfigFactory}
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
-import com.snowplowanalytics.iglu.core.circe.implicits._
+import io.circe.Json
+import io.circe.parser.{parse => jsonParse}
+import io.circe.config.parser.{decode => hoconDecode}
+
+import scala.io.Source
 
 import com.snowplowanalytics.iglu.client.Client
 
@@ -50,47 +51,40 @@ object Cli {
 
   private def fromRawConfig[F[_]: Sync: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {
-      resolverJson <- PathOrJson.load(rawConfig.resolver)
+      resolverJson <- loadJson(rawConfig.resolver).toEitherT[F]
       igluClient <- Client.parseDefault[F](resolverJson).leftMap(_.show)
-      configJson <- PathOrJson.load(rawConfig.config)
-      configData <-
-        SelfDescribingData
-          .parse(configJson)
-          .leftMap(e => s"Configuration JSON is not self-describing, ${e.message(configJson.noSpaces)}")
-          .toEitherT[F]
-      _ <- igluClient.check(configData).leftMap(e => s"Iglu validation failed with following error\n: ${e.asJson.spaces2}")
-      appConfig <- configData.data.as[LoaderConfig].toEitherT[F].leftMap(e => s"Error while decoding configuration JSON, ${e.show}")
+      configHocon <- loadHocon(rawConfig.config).toEitherT[F]
+      appConfig <- hoconDecode[LoaderConfig](configHocon).leftMap(e => s"Could not parse config: ${e.show}").toEitherT[F]
     } yield Cli(appConfig, igluClient)
 
-  /** Config files for Loader can be passed either as FS path
-    * or as base64-encoded JSON (if `--base64` is provided) */
-  type PathOrJson = Either[Path, Json]
-
-  object PathOrJson {
-    def parse(string: String, encoded: Boolean): ValidatedNel[String, PathOrJson] = {
-      val result =
-        if (encoded)
-          Either
-            .catchOnly[IllegalArgumentException](new String(Base64.getDecoder.decode(string)))
-            .leftMap(_.getMessage)
-            .flatMap(s => jsonParse(s).leftMap(_.show))
-            .map(_.asRight)
-        else Either.catchOnly[InvalidPathException](Paths.get(string).asLeft).leftMap(_.getMessage)
-      result.leftMap(error => s"Cannot parse as ${if (encoded) "base64-encoded JSON" else "FS path"}: $error").toValidatedNel
-    }
-
-    def load[F[_]: Sync](value: PathOrJson): EitherT[F, String, Json] =
-      value match {
-        case Right(json) =>
-          EitherT.rightT[F, String](json)
-        case Left(path) =>
-          Either
-            .catchNonFatal(new String(Files.readAllBytes(path)))
-            .leftMap(e => s"Cannot read the file path: $e")
-            .flatMap(s => jsonParse(s).leftMap(_.show))
-            .toEitherT[F]
-      }
+  private def parseSource(string: String, encoded: Boolean): ValidatedNel[String, Source] = {
+    val result =
+      if (encoded)
+        Either
+          .catchOnly[IllegalArgumentException](new String(Base64.getDecoder.decode(string)))
+          .leftMap(_.getMessage)
+          .map(Source.fromString)
+        else Either.catchOnly[InvalidPathException](Paths.get(string)).leftMap(_.getMessage).map(p => Source.fromFile(p.toFile))
+    result.leftMap(error => s"Cannot parse as ${if (encoded) "base64-encoded JSON" else "FS path"}: $error").toValidatedNel
   }
+
+  private def loadJson(source: Source): Either[String, Json] =
+    for {
+      text <- Either
+        .catchNonFatal(source.mkString)
+        .leftMap(e => s"Could not read config: ${e.getMessage}")
+      parsed <- jsonParse(text).leftMap(_.show)
+    } yield parsed
+
+  private def loadHocon(source: Source): Either[String, LightbendConfig] =
+    for {
+      text <- Either
+        .catchNonFatal(source.mkString)
+        .leftMap(e => s"Could not read config: ${e.getMessage}")
+      resolved <- Either
+        .catchNonFatal(ConfigFactory.parseString(text).resolve)
+        .leftMap(e => s"Could not parse config: ${e.getMessage}")
+    } yield ConfigFactory.load(resolved.withFallback(ConfigFactory.load().getConfig("snowplow")))
 
   val resolver = Opts.option[String](
     long = "resolver",
@@ -110,11 +104,11 @@ object Cli {
     .orFalse
 
   /** Temporary, pure config */
-  private case class RawConfig(config: PathOrJson, resolver: PathOrJson)
+  private case class RawConfig(config: Source, resolver: Source)
 
   private val command: Command[RawConfig] =
     Command[(String, String, Boolean)](BuildInfo.name, BuildInfo.version)((config, resolver, base64).tupled).mapValidated {
       case (cfg, res, enc) =>
-        (PathOrJson.parse(cfg, enc), PathOrJson.parse(res, enc)).mapN(RawConfig.apply)
+        (parseSource(cfg, enc), parseSource(res, enc)).mapN(RawConfig.apply)
     }
 }

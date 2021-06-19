@@ -20,9 +20,9 @@ import scala.jdk.CollectionConverters._
 import cats.syntax.either._
 
 import io.circe.Decoder
-import io.circe.generic.semiauto.deriveDecoder
-import io.circe.generic.extras.Configuration
+//import io.circe.generic.semiauto.deriveDecoder
 import io.circe.generic.extras.semiauto.deriveConfiguredDecoder
+import io.circe.generic.extras.Configuration
 
 import LoaderConfig.{Purpose, Source}
 
@@ -31,21 +31,15 @@ import software.amazon.kinesis.common.InitialPositionInStream
 
 case class LoaderConfig(name: String,
                         id: UUID,
-                        source: Source,
-                        host: String,
-                        port: Int,
-                        database: String,
-                        username: String,
-                        password: String, // TODO: can be EC2 store
-                        sslMode: String,
-                        schema: String,
+                        input: Source,
+                        storage: DBConfig,
                         purpose: Purpose
-) {
-  def getDBConfig: DBConfig =
-    DBConfig(host, port, database, username, password, sslMode, schema)
-}
+)
 
 object LoaderConfig {
+
+  private[config] implicit def customCodecConfig: Configuration =
+    Configuration.default.withDiscriminator("type")
 
   implicit val awsRegionDecoder: Decoder[Region] =
     Decoder.decodeString.emap { s =>
@@ -112,14 +106,11 @@ object LoaderConfig {
     case class Kinesis(appName: String, streamName: String, region: Region, initialPosition: InitPosition) extends Source
     case class PubSub(projectId: String, subscriptionId: String) extends Source
 
-    implicit val config: Configuration =
-      Configuration.default.withSnakeCaseConstructorNames
-
     implicit def ioCirceConfigSourceDecoder: Decoder[Source] =
       deriveConfiguredDecoder[Source]
   }
 
   implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =
-    deriveDecoder[LoaderConfig]
+    deriveConfiguredDecoder[LoaderConfig]
 
 }

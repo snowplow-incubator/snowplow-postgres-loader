@@ -31,7 +31,6 @@ lazy val common = project
       Dependencies.circeGeneric,
       Dependencies.circeExtras,
       Dependencies.circeParser,
-      Dependencies.circeLiteral,
       Dependencies.doobie,
       Dependencies.doobiePg,
       Dependencies.doobiePgCirce,
@@ -41,6 +40,7 @@ lazy val common = project
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,
+      Dependencies.circeLiteral % Test,
       Dependencies.specs2,
       Dependencies.specs2Check,
       Dependencies.scalaCheck
@@ -58,10 +58,12 @@ lazy val loader = project
   .settings(BuildSettings.dynVerSettings)
   .settings(
     libraryDependencies ++= Seq(
+      Dependencies.circeConfig,
       Dependencies.commons,
       Dependencies.fs2Aws,
       Dependencies.fs2PubSub,
       Dependencies.decline,
+      Dependencies.config,
       Dependencies.specs2
     )
   )

@@ -1,0 +1,41 @@
+{
+  # Human-readable storage target name, used only for logging
+  "name": "Acme Ltd. Snowplow Postgres"
+  # Machine-readable unique identifier
+  "id": "5c5e4353-4eeb-43da-98f8-2de6dc7fa947"
+
+  "input": {
+    # Enable the Kinesis source
+    "type": "Kinesis"
+    # Name of the application which the KCL daemon should assume
+    "appName": "acme-postgres-loader"
+    # Name of the Kinesis stream to read from
+    "streamName": "enriched-events"
+    # AWS region in which the Kinesis stream resides.
+    "region": "eu-central-1"
+    # Either TRIM_HORIZON or LATEST
+    "initialPosition": "TRIM_HORIZON"
+  }
+
+  "storage" : {
+    "type": "Postgres"
+    # PostgreSQL host ('localhost' for enabled SSH Tunnel)
+    "host": "localhost"
+    # PostgreSQL database port
+    "port": 5432
+    # PostgreSQL database name
+    "database": "snowplow"
+    # PostgreSQL user to load data
+    "username": "postgres"
+    # PostgreSQL password, either plain text or from an environment variable
+    "password": "mysecretpassword"
+    "password": ${?POSTGRES_PASSWORD}
+    # PostgreSQL database schema
+    "schema": "atomic"
+    # JDBC ssl mode
+    "sslMode": "REQUIRE"
+  }
+
+  # Kind of data stored in this instance. Either ENRICHED_EVENTS or JSON
+  "purpose": "ENRICHED_EVENTS"
+}
