@@ -18,7 +18,7 @@ object Dependencies {
   object V {
     // Java
     val postgres     = "42.2.14"
-    val commons      = "1.13"
+    val commons      = "1.15"
     val logback      = "1.2.3"
 
     // Scala third-party
