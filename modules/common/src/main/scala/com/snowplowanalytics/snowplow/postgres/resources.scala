@@ -39,7 +39,7 @@ object resources {
     for {
       blocker <- Blocker[F]
       xa <- resources.getTransactor[F](DBConfig.hikariConfig(postgres), blocker)
-      state <- Resource.liftF(initializeState(postgres.schema, iglu, xa))
+      state <- Resource.eval(initializeState(postgres.schema, iglu, xa))
     } yield (blocker, xa, state)
 
   def initializeState[F[_]: Concurrent: Clock](schema: String, iglu: Client[F, Json], xa: HikariTransactor[F]): F[State[F]] =
