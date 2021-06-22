@@ -36,23 +36,19 @@ object Main extends IOApp {
       case Right(Cli(loaderConfig, iglu)) =>
         resources.initialize[IO](loaderConfig.storage, iglu).use {
           case (blocker, xa, state) =>
-            source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.input) match {
-              case Right(dataStream) =>
-                implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.storage.schema)
-                for {
-                  _ <- loaderConfig.purpose match {
-                    case Purpose.Enriched       => utils.prepare[IO](loaderConfig.storage.schema, xa)
-                    case Purpose.SelfDescribing => IO.unit
-                  }
-                  badSink = sink.badSink[IO]
-                  goodSink = sink.goodSink[IO](UnorderedPipe.forTransactor(xa), state, iglu, processor).andThen(_.through(badSink))
-                  s = dataStream.observeEither(badSink, goodSink)
+            val dataStream = source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.input)
+            implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.storage.schema)
+            for {
+              _ <- loaderConfig.purpose match {
+                case Purpose.Enriched       => utils.prepare[IO](loaderConfig.storage.schema, xa)
+                case Purpose.SelfDescribing => IO.unit
+              }
+              badSink = sink.badSink[IO]
+              goodSink = sink.goodSink[IO](UnorderedPipe.forTransactor(xa), state, iglu, processor).andThen(_.through(badSink))
+              s = dataStream.observeEither(badSink, goodSink)
 
-                  _ <- s.compile.drain
-                } yield ExitCode.Success
-              case Left(error) =>
-                IO.delay(logger.error(s"Source initialization error\n${error.getMessage}")).as(ExitCode.Error)
-            }
+              _ <- s.compile.drain
+            } yield ExitCode.Success
         }
 
       case Left(error) =>
