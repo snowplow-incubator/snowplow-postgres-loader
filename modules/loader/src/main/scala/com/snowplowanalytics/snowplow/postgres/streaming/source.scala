@@ -17,10 +17,10 @@ import java.nio.charset.StandardCharsets
 
 import cats.implicits._
 
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Sync}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
-import fs2.aws.kinesis.{CommittableRecord, KinesisConsumerSettings}
-import fs2.aws.kinesis.consumer.readFromKinesisStream
+import fs2.Stream
+import fs2.aws.kinesis.{CommittableRecord, Kinesis, KinesisConsumerSettings}
 
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 import io.circe.Json
@@ -41,6 +41,10 @@ import com.google.pubsub.v1.PubsubMessage
 import com.permutive.pubsub.consumer.Model.{ProjectId, Subscription}
 import com.permutive.pubsub.consumer.decoder.MessageDecoder
 
+import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+
 object source {
 
   private lazy val logger = getLogger
@@ -53,15 +57,18 @@ object source {
     * @param config source configuration
     * @return either error or stream of parsed payloads
     */
-  def getSource[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker, purpose: Purpose, config: Source) =
+  def getSource[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, purpose: Purpose, config: Source): Stream[F, Either[BadData, Data]] =
     config match {
       case LoaderConfig.Source.Kinesis(appName, streamName, region, position) =>
-        KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap) match {
-          case Right(settings) =>
-            readFromKinesisStream[F](settings).evalMap(record => record.checkpoint.as(parseRecord(purpose, record))).asRight
-          case Left(error) =>
-            error.asLeft
-        }
+        for {
+          kinesisClient <- Stream.resource(makeKinesisClient[F])
+          dynamoClient <- Stream.resource(makeDynamoDbClient[F])
+          cloudWatchClient <- Stream.resource(makeCloudWatchClient[F])
+          kinesis = Kinesis.create(kinesisClient, dynamoClient, cloudWatchClient, blocker)
+          settings = KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap)
+          record <- kinesis.readFromKinesisStream(settings)
+          _ <- Stream.eval(record.checkpoint)
+        } yield parseRecord(purpose, record)
       case LoaderConfig.Source.PubSub(projectId, subscriptionId) =>
         implicit val decoder: MessageDecoder[Either[BadData, Data]] = pubsubDataDecoder(purpose)
         val project = ProjectId(projectId)
@@ -69,7 +76,6 @@ object source {
         val pubsubConfig = PubsubGoogleConsumerConfig[F](onFailedTerminate = pubsubOnFailedTerminate[F])
         PubsubGoogleConsumer
           .subscribeAndAck[F, Either[BadData, Data]](blocker, project, subscription, pubsubErrorHandler[F], pubsubConfig)
-          .asRight
     }
 
   /**
@@ -128,4 +134,13 @@ object source {
 
   def pubsubOnFailedTerminate[F[_]: Sync](error: Throwable): F[Unit] =
     Sync[F].delay(logger.warn(s"Cannot terminate pubsub consumer properly\n${error.getMessage}"))
+
+  def makeKinesisClient[F[_]: Sync]: Resource[F, KinesisAsyncClient] =
+    Resource.fromAutoCloseable(Sync[F].delay(KinesisAsyncClient.create()))
+
+  def makeDynamoDbClient[F[_]: Sync]: Resource[F, DynamoDbAsyncClient] =
+    Resource.fromAutoCloseable(Sync[F].delay(DynamoDbAsyncClient.create()))
+
+  def makeCloudWatchClient[F[_]: Sync]: Resource[F, CloudWatchAsyncClient] =
+    Resource.fromAutoCloseable(Sync[F].delay(CloudWatchAsyncClient.create()))
 }
