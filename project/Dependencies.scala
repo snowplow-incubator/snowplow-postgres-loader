@@ -35,7 +35,7 @@ object Dependencies {
 
     val analyticsSdk = "2.1.0"
     val badRows      = "2.1.0"
-    val schemaDdl    = "0.11.0"
+    val schemaDdl    = "0.13.0"
 
     // Testing
     val specs2       = "4.9.4"
