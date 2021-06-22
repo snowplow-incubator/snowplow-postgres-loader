@@ -27,7 +27,7 @@ import io.circe.generic.extras.Configuration
 import LoaderConfig.{Purpose, Source}
 
 import software.amazon.awssdk.regions.Region
-import software.amazon.kinesis.common.InitialPositionInStream
+import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionInStreamExtended}
 
 case class LoaderConfig(name: String,
                         id: UUID,
@@ -50,12 +50,12 @@ object LoaderConfig {
 
   sealed trait InitPosition {
 
-    /** Turn it into fs2-aws-compatible structure */
-    def unwrap: Either[InitialPositionInStream, Date] =
+    /** Turn it into aws-compatible structure */
+    def unwrap: InitialPositionInStreamExtended =
       this match {
-        case InitPosition.Latest            => InitialPositionInStream.LATEST.asLeft
-        case InitPosition.TrimHorizon       => InitialPositionInStream.TRIM_HORIZON.asLeft
-        case InitPosition.AtTimestamp(date) => Date.from(date).asRight
+        case InitPosition.Latest            => InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.LATEST)
+        case InitPosition.TrimHorizon       => InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.TRIM_HORIZON)
+        case InitPosition.AtTimestamp(timestamp) => InitialPositionInStreamExtended.newInitialPositionAtTimestamp(Date.from(timestamp))
       }
   }
   object InitPosition {
@@ -103,8 +103,30 @@ object LoaderConfig {
   sealed trait Source extends Product with Serializable
   object Source {
 
-    case class Kinesis(appName: String, streamName: String, region: Region, initialPosition: InitPosition) extends Source
+    case class Kinesis(appName: String,
+                       streamName: String,
+                       region: Region,
+                       initialPosition: InitPosition,
+                       retrievalMode: Kinesis.Retrieval) extends Source
     case class PubSub(projectId: String, subscriptionId: String) extends Source
+
+    object Kinesis {
+      sealed trait Retrieval
+
+      object Retrieval {
+        case class Polling(maxRecords: Int) extends Retrieval
+        case object FanOut extends Retrieval 
+
+        implicit val retrievalDecoder: Decoder[Retrieval] = {
+          Decoder.decodeString.emap {
+            case "FanOut" => FanOut.asRight
+            case "Polling" => "retrieval mode Polling must provide the maxRecords option".asLeft
+            case other =>
+              s"retrieval mode $other is unknown. Choose from FanOut and Polling. Polling must provide a MaxRecords option".asLeft
+          }.or(deriveConfiguredDecoder[Retrieval])
+        }
+      }
+    }
 
     implicit def ioCirceConfigSourceDecoder: Decoder[Source] =
       deriveConfiguredDecoder[Source]

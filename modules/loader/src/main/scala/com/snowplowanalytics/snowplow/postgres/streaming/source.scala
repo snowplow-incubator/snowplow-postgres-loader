@@ -12,7 +12,8 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
-import java.util.Base64
+import java.util.{Base64, UUID}
+import java.net.InetAddress
 import java.nio.charset.StandardCharsets
 
 import cats.implicits._
@@ -20,7 +21,7 @@ import cats.implicits._
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
 import fs2.Stream
-import fs2.aws.kinesis.{CommittableRecord, Kinesis, KinesisConsumerSettings}
+import fs2.aws.kinesis.{CommittableRecord, Kinesis}
 
 import com.permutive.pubsub.consumer.grpc.{PubsubGoogleConsumer, PubsubGoogleConsumerConfig}
 import io.circe.Json
@@ -41,6 +42,12 @@ import com.google.pubsub.v1.PubsubMessage
 import com.permutive.pubsub.consumer.Model.{ProjectId, Subscription}
 import com.permutive.pubsub.consumer.decoder.MessageDecoder
 
+import software.amazon.awssdk.regions.Region
+import software.amazon.kinesis.common.ConfigsBuilder
+import software.amazon.kinesis.coordinator.Scheduler
+import software.amazon.kinesis.processor.ShardRecordProcessorFactory
+import software.amazon.kinesis.retrieval.polling.PollingConfig
+import software.amazon.kinesis.retrieval.fanout.FanOutConfig
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
@@ -59,14 +66,13 @@ object source {
     */
   def getSource[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, purpose: Purpose, config: Source): Stream[F, Either[BadData, Data]] =
     config match {
-      case LoaderConfig.Source.Kinesis(appName, streamName, region, position) =>
+      case kConfig: LoaderConfig.Source.Kinesis =>
         for {
-          kinesisClient <- Stream.resource(makeKinesisClient[F])
-          dynamoClient <- Stream.resource(makeDynamoDbClient[F])
-          cloudWatchClient <- Stream.resource(makeCloudWatchClient[F])
-          kinesis = Kinesis.create(kinesisClient, dynamoClient, cloudWatchClient, blocker)
-          settings = KinesisConsumerSettings.apply(streamName, appName, region, initialPositionInStream = position.unwrap)
-          record <- kinesis.readFromKinesisStream(settings)
+          kinesisClient <- Stream.resource(makeKinesisClient[F](kConfig.region))
+          dynamoClient <- Stream.resource(makeDynamoDbClient[F](kConfig.region))
+          cloudWatchClient <- Stream.resource(makeCloudWatchClient[F](kConfig.region))
+          kinesis = Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kConfig, _))
+          record <- kinesis.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
           _ <- Stream.eval(record.checkpoint)
         } yield parseRecord(purpose, record)
       case LoaderConfig.Source.PubSub(projectId, subscriptionId) =>
@@ -135,12 +141,71 @@ object source {
   def pubsubOnFailedTerminate[F[_]: Sync](error: Throwable): F[Unit] =
     Sync[F].delay(logger.warn(s"Cannot terminate pubsub consumer properly\n${error.getMessage}"))
 
-  def makeKinesisClient[F[_]: Sync]: Resource[F, KinesisAsyncClient] =
-    Resource.fromAutoCloseable(Sync[F].delay(KinesisAsyncClient.create()))
+  def scheduler[F[_]: Sync](kinesisClient: KinesisAsyncClient,
+                            dynamoDbClient: DynamoDbAsyncClient,
+                            cloudWatchClient: CloudWatchAsyncClient,
+                            config: LoaderConfig.Source.Kinesis,
+                            recordProcessorFactory: ShardRecordProcessorFactory): F[Scheduler] =
+    Sync[F].delay(UUID.randomUUID()).map { uuid =>
+      val hostname = InetAddress.getLocalHost().getCanonicalHostName()
 
-  def makeDynamoDbClient[F[_]: Sync]: Resource[F, DynamoDbAsyncClient] =
-    Resource.fromAutoCloseable(Sync[F].delay(DynamoDbAsyncClient.create()))
+      val configsBuilder =
+        new ConfigsBuilder(config.streamName,
+                           config.appName,
+                           kinesisClient,
+                           dynamoDbClient,
+                           cloudWatchClient,
+                           s"$hostname:$uuid",
+                           recordProcessorFactory)
 
-  def makeCloudWatchClient[F[_]: Sync]: Resource[F, CloudWatchAsyncClient] =
-    Resource.fromAutoCloseable(Sync[F].delay(CloudWatchAsyncClient.create()))
+      val retrievalConfig =
+        configsBuilder
+          .retrievalConfig
+          .initialPositionInStreamExtended(config.initialPosition.unwrap)
+          .retrievalSpecificConfig {
+            config.retrievalMode match {
+              case LoaderConfig.Source.Kinesis.Retrieval.FanOut =>
+                new FanOutConfig(kinesisClient)
+              case LoaderConfig.Source.Kinesis.Retrieval.Polling(maxRecords) =>
+                new PollingConfig(config.streamName, kinesisClient).maxRecords(maxRecords)
+            }
+          }
+
+      new Scheduler(
+        configsBuilder.checkpointConfig,
+        configsBuilder.coordinatorConfig,
+        configsBuilder.leaseManagementConfig,
+        configsBuilder.lifecycleConfig,
+        configsBuilder.metricsConfig,
+        configsBuilder.processorConfig,
+        retrievalConfig
+      )
+    }
+
+  def makeKinesisClient[F[_]: Sync](region: Region): Resource[F, KinesisAsyncClient] =
+    Resource.fromAutoCloseable {
+      Sync[F].delay {
+        KinesisAsyncClient.builder()
+          .region(region)
+          .build
+      }
+    }
+
+  def makeDynamoDbClient[F[_]: Sync](region: Region): Resource[F, DynamoDbAsyncClient] =
+    Resource.fromAutoCloseable {
+      Sync[F].delay {
+        DynamoDbAsyncClient.builder()
+          .region(region)
+          .build
+      }
+    }
+
+  def makeCloudWatchClient[F[_]: Sync](region: Region): Resource[F, CloudWatchAsyncClient] =
+    Resource.fromAutoCloseable {
+      Sync[F].delay {
+        CloudWatchAsyncClient.builder()
+          .region(region)
+          .build
+      }
+    }
 }
