@@ -34,7 +34,7 @@ class CliSpec extends Specification {
       val expected = LoaderConfig(
         "Acme Ltd. Snowplow Postgres",
         UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
-        Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon),
+        Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon, Source.Kinesis.Retrieval.FanOut),
         DBConfig(
           "localhost",
           5432,
