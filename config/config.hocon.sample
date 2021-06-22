@@ -15,6 +15,13 @@
     "region": "eu-central-1"
     # Either TRIM_HORIZON or LATEST
     "initialPosition": "TRIM_HORIZON"
+
+    # Use either enhanced fan out or polling mode for retrieving records
+    "retrievalMode": "FanOut"
+    # "retrievalMode": {
+    #   "type": "Polling"
+    #   "maxRecords": 1000
+    # }
   }
 
   "storage" : {
