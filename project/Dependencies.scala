@@ -30,7 +30,7 @@ object Dependencies {
     val fs2PubSub    = "0.17.0"
     val doobie       = "0.13.4"
     val fs2          = "2.5.6"
-    val log4s        = "1.8.2"
+    val log4s        = "1.10.0"
     val config       = "1.4.1"
 
     val analyticsSdk = "2.1.0"
