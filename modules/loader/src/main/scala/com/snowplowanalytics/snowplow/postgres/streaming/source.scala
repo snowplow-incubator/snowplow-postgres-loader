@@ -34,8 +34,8 @@ import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
-import com.snowplowanalytics.snowplow.postgres.config.{Cli, LoaderConfig}
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source}
+import com.snowplowanalytics.snowplow.postgres.config.Cli
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Monitoring, Purpose, Source}
 import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
 
 import com.google.pubsub.v1.PubsubMessage
@@ -45,6 +45,7 @@ import com.permutive.pubsub.consumer.decoder.MessageDecoder
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.ConfigsBuilder
 import software.amazon.kinesis.coordinator.Scheduler
+import software.amazon.kinesis.metrics.MetricsLevel
 import software.amazon.kinesis.processor.ShardRecordProcessorFactory
 import software.amazon.kinesis.retrieval.polling.PollingConfig
 import software.amazon.kinesis.retrieval.fanout.FanOutConfig
@@ -64,18 +65,18 @@ object source {
     * @param config source configuration
     * @return either error or stream of parsed payloads
     */
-  def getSource[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, purpose: Purpose, config: Source): Stream[F, Either[BadData, Data]] =
+  def getSource[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, purpose: Purpose, config: Source, metrics: Monitoring.Metrics): Stream[F, Either[BadData, Data]] =
     config match {
-      case kConfig: LoaderConfig.Source.Kinesis =>
+      case kConfig: Source.Kinesis =>
         for {
           kinesisClient <- Stream.resource(makeKinesisClient[F](kConfig.region))
           dynamoClient <- Stream.resource(makeDynamoDbClient[F](kConfig.region))
           cloudWatchClient <- Stream.resource(makeCloudWatchClient[F](kConfig.region))
-          kinesis = Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kConfig, _))
+          kinesis = Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, kConfig, metrics, _))
           record <- kinesis.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
           _ <- Stream.eval(record.checkpoint)
         } yield parseRecord(purpose, record)
-      case LoaderConfig.Source.PubSub(projectId, subscriptionId) =>
+      case Source.PubSub(projectId, subscriptionId) =>
         implicit val decoder: MessageDecoder[Either[BadData, Data]] = pubsubDataDecoder(purpose)
         val project = ProjectId(projectId)
         val subscription = Subscription(subscriptionId)
@@ -144,7 +145,8 @@ object source {
   def scheduler[F[_]: Sync](kinesisClient: KinesisAsyncClient,
                             dynamoDbClient: DynamoDbAsyncClient,
                             cloudWatchClient: CloudWatchAsyncClient,
-                            config: LoaderConfig.Source.Kinesis,
+                            config: Source.Kinesis,
+                            metrics: Monitoring.Metrics,
                             recordProcessorFactory: ShardRecordProcessorFactory): F[Scheduler] =
     Sync[F].delay(UUID.randomUUID()).map { uuid =>
       val hostname = InetAddress.getLocalHost().getCanonicalHostName()
@@ -164,19 +166,23 @@ object source {
           .initialPositionInStreamExtended(config.initialPosition.unwrap)
           .retrievalSpecificConfig {
             config.retrievalMode match {
-              case LoaderConfig.Source.Kinesis.Retrieval.FanOut =>
+              case Source.Kinesis.Retrieval.FanOut =>
                 new FanOutConfig(kinesisClient)
-              case LoaderConfig.Source.Kinesis.Retrieval.Polling(maxRecords) =>
+              case Source.Kinesis.Retrieval.Polling(maxRecords) =>
                 new PollingConfig(config.streamName, kinesisClient).maxRecords(maxRecords)
             }
           }
+
+      val metricsConfig = configsBuilder.metricsConfig.metricsLevel {
+        if (metrics.cloudWatch) MetricsLevel.DETAILED else MetricsLevel.NONE
+      }
 
       new Scheduler(
         configsBuilder.checkpointConfig,
         configsBuilder.coordinatorConfig,
         configsBuilder.leaseManagementConfig,
         configsBuilder.lifecycleConfig,
-        configsBuilder.metricsConfig,
+        metricsConfig,
         configsBuilder.processorConfig,
         retrievalConfig
       )

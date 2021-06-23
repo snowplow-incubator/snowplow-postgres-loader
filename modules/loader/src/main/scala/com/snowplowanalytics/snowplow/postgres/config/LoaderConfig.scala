@@ -33,7 +33,8 @@ case class LoaderConfig(name: String,
                         id: UUID,
                         input: Source,
                         storage: DBConfig,
-                        purpose: Purpose
+                        purpose: Purpose,
+                        monitoring: LoaderConfig.Monitoring
 )
 
 object LoaderConfig {
@@ -130,6 +131,18 @@ object LoaderConfig {
 
     implicit def ioCirceConfigSourceDecoder: Decoder[Source] =
       deriveConfiguredDecoder[Source]
+  }
+
+  case class Monitoring(metrics: Monitoring.Metrics)
+
+  object Monitoring {
+    case class Metrics(cloudWatch: Boolean)
+
+    implicit def metricsDecoder: Decoder[Metrics] =
+      deriveConfiguredDecoder[Metrics]
+
+    implicit def monitoringDecoder: Decoder[Monitoring] =
+      deriveConfiguredDecoder[Monitoring]
   }
 
   implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =
