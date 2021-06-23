@@ -36,7 +36,7 @@ object Main extends IOApp {
       case Right(Cli(loaderConfig, iglu)) =>
         resources.initialize[IO](loaderConfig.storage, iglu).use {
           case (blocker, xa, state) =>
-            val dataStream = source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.input)
+            val dataStream = source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.input, loaderConfig.monitoring.metrics)
             implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.storage.schema)
             for {
               _ <- loaderConfig.purpose match {
