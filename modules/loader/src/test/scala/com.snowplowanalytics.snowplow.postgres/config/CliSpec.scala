@@ -17,10 +17,11 @@ import java.util.UUID
 
 import cats.effect.{Clock, IO}
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Monitoring, Purpose, Source}
+
+import software.amazon.awssdk.regions.Region
 
 import org.specs2.mutable.Specification
-import software.amazon.awssdk.regions.Region
 
 class CliSpec extends Specification {
   implicit val ioClock: Clock[IO] = Clock.create[IO]
@@ -34,7 +35,13 @@ class CliSpec extends Specification {
       val expected = LoaderConfig(
         "Acme Ltd. Snowplow Postgres",
         UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
-        Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon, Source.Kinesis.Retrieval.FanOut),
+        Source.Kinesis(
+          "acme-postgres-loader",
+          "enriched-events",
+          Region.EU_CENTRAL_1,
+          InitPosition.TrimHorizon,
+          Source.Kinesis.Retrieval.FanOut
+        ),
         DBConfig(
           "localhost",
           5432,
@@ -44,7 +51,8 @@ class CliSpec extends Specification {
           "REQUIRE",
           "atomic"
         ),
-        Purpose.Enriched
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
