@@ -45,6 +45,7 @@ import com.permutive.pubsub.consumer.decoder.MessageDecoder
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.ConfigsBuilder
 import software.amazon.kinesis.coordinator.Scheduler
+import software.amazon.kinesis.metrics.MetricsLevel
 import software.amazon.kinesis.processor.ShardRecordProcessorFactory
 import software.amazon.kinesis.retrieval.polling.PollingConfig
 import software.amazon.kinesis.retrieval.fanout.FanOutConfig
@@ -171,12 +172,16 @@ object source {
             }
           }
 
+      val metricsConfig = configsBuilder.metricsConfig.metricsLevel {
+        if (config.disableCloudWatch) MetricsLevel.NONE else MetricsLevel.DETAILED
+      }
+
       new Scheduler(
         configsBuilder.checkpointConfig,
         configsBuilder.coordinatorConfig,
         configsBuilder.leaseManagementConfig,
         configsBuilder.lifecycleConfig,
-        configsBuilder.metricsConfig,
+        metricsConfig,
         configsBuilder.processorConfig,
         retrievalConfig
       )

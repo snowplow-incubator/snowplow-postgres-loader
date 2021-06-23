@@ -19,8 +19,9 @@ import cats.effect.{Clock, IO}
 
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source}
 
-import org.specs2.mutable.Specification
 import software.amazon.awssdk.regions.Region
+
+import org.specs2.mutable.Specification
 
 class CliSpec extends Specification {
   implicit val ioClock: Clock[IO] = Clock.create[IO]
@@ -34,7 +35,14 @@ class CliSpec extends Specification {
       val expected = LoaderConfig(
         "Acme Ltd. Snowplow Postgres",
         UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
-        Source.Kinesis("acme-postgres-loader", "enriched-events", Region.EU_CENTRAL_1, InitPosition.TrimHorizon, Source.Kinesis.Retrieval.FanOut),
+        Source.Kinesis(
+          "acme-postgres-loader",
+          "enriched-events",
+          Region.EU_CENTRAL_1,
+          InitPosition.TrimHorizon,
+          Source.Kinesis.Retrieval.FanOut,
+          false
+        ),
         DBConfig(
           "localhost",
           5432,

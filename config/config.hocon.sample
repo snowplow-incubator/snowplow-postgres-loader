@@ -16,12 +16,15 @@
     # Either TRIM_HORIZON or LATEST
     "initialPosition": "TRIM_HORIZON"
 
-    # Use either enhanced fan out or polling mode for retrieving records
-    "retrievalMode": "FanOut"
+    # Optional, set the  polling mode for retrieving records. Default is FanOut
+    # "retrievalMode": "FanOut"
     # "retrievalMode": {
     #   "type": "Polling"
     #   "maxRecords": 1000
     # }
+
+    # Optional override to disable cloudwatch metrics
+    # "disableCloudWatch": true
   }
 
   "storage" : {

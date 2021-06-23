@@ -107,7 +107,8 @@ object LoaderConfig {
                        streamName: String,
                        region: Region,
                        initialPosition: InitPosition,
-                       retrievalMode: Kinesis.Retrieval) extends Source
+                       retrievalMode: Kinesis.Retrieval,
+                       disableCloudWatch: Boolean) extends Source
     case class PubSub(projectId: String, subscriptionId: String) extends Source
 
     object Kinesis {
