@@ -95,7 +95,7 @@ class TypeSpec extends Specification {
 
     "return jsonb type for a complex enum field" >> {
       val properties = Schema(enum = Some(CommonProperties.Enum(List(Json.fromInt(12345), Json.fromString("y")))))
-      Type.getDataType(properties, Type.dataTypeSuggestions) must_== Type.Varchar(5)
+      Type.getDataType(properties, Type.dataTypeSuggestions) must_== Type.Jsonb
     }
 
   }

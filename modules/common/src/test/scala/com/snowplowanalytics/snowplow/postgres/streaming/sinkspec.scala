@@ -98,7 +98,7 @@ class sinkspec extends Database {
         ColumnInfo("required_union", None, false, "jsonb", None),
         ColumnInfo("id", None, true, "uuid", None),
         ColumnInfo("nested.a", None, true, "double precision", None),
-        ColumnInfo("nested.b", None, true, "character varying", Some(4096)),
+        ColumnInfo("nested.b", None, true, "jsonb", None),
         ColumnInfo("some_array", None, true, "jsonb", None),
         ColumnInfo("nested.c", None, true, "bigint", None),
         ColumnInfo("some_date", None, true, "timestamp without time zone", None),
