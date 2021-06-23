@@ -57,7 +57,7 @@ object Type {
   /** Derive a Postgres type, given JSON Schema */
   def getDataType(properties: Schema, suggestions: List[DataTypeSuggestion]): Type =
     suggestions match {
-      case Nil => Type.Varchar(DefaultVarcharSize) // Generic
+      case Nil => Type.Jsonb // Generic
       case suggestion :: tail =>
         suggestion(properties) match {
           case Some(format) => format
@@ -69,8 +69,7 @@ object Type {
   val complexEnumSuggestion: DataTypeSuggestion = properties =>
     properties.enum match {
       case Some(enums) if isComplexEnum(enums.value) =>
-        val longest = excludeNull(enums.value).map(_.noSpaces.length).maximumOption.getOrElse(16)
-        Some(Type.Varchar(longest))
+        Some(Type.Jsonb)
       case _ => None
     }
 
@@ -167,11 +166,6 @@ object Type {
           case Some(max) => Some(Type.Varchar(max))
           case None      => Some(Type.Varchar(DefaultVarcharSize))
         }
-      case (_, _, Some(e)) =>
-        e.value.map(jsonLength).maximumOption match {
-          case Some(max) => Some(Type.Varchar(max))
-          case None      => Some(Type.Varchar(DefaultVarcharSize))
-        }
       case _ => None
     }
   }
@@ -188,9 +182,6 @@ object Type {
     uuidSuggestion,
     varcharSuggestion
   )
-
-  private def jsonLength(json: Json): Int =
-    json.fold(0, b => b.toString.length, _ => json.noSpaces.length, _.length, _ => json.noSpaces.length, _ => json.noSpaces.length)
 
   /**
     * Get set of types or enum as string excluding null
