@@ -24,6 +24,13 @@
     # }
   }
 
+  # Alternative input block for PubSub source
+  # "input": {
+  #   "type": "PubSub"
+  #   "projectId": "my-project"
+  #   "subscriptionId": "my-subscription"
+  # }
+
   "output" : {
     "type": "Postgres"
     # PostgreSQL host ('localhost' for enabled SSH Tunnel)
