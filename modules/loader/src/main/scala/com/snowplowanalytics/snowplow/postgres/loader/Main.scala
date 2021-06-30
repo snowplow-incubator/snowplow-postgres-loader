@@ -34,13 +34,13 @@ object Main extends IOApp {
   def run(args: List[String]): IO[ExitCode] =
     Cli.parse[IO](args).value.flatMap {
       case Right(Cli(loaderConfig, iglu)) =>
-        resources.initialize[IO](loaderConfig.storage, iglu).use {
+        resources.initialize[IO](loaderConfig.output, iglu).use {
           case (blocker, xa, state) =>
             val dataStream = source.getSource[IO](blocker, loaderConfig.purpose, loaderConfig.input, loaderConfig.monitoring.metrics)
-            implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.storage.schema)
+            implicit val db: DB[IO] = DB.interpreter[IO](iglu.resolver, xa, loaderConfig.output.schema)
             for {
               _ <- loaderConfig.purpose match {
-                case Purpose.Enriched       => utils.prepare[IO](loaderConfig.storage.schema, xa)
+                case Purpose.Enriched       => utils.prepare[IO](loaderConfig.output.schema, xa)
                 case Purpose.SelfDescribing => IO.unit
               }
               badSink = sink.badSink[IO]
