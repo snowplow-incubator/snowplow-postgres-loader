@@ -32,7 +32,7 @@ import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionI
 case class LoaderConfig(name: String,
                         id: UUID,
                         input: Source,
-                        storage: DBConfig,
+                        output: DBConfig,
                         purpose: Purpose,
                         monitoring: LoaderConfig.Monitoring
 )
