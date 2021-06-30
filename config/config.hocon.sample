@@ -24,7 +24,7 @@
     # }
   }
 
-  "storage" : {
+  "output" : {
     "type": "Postgres"
     # PostgreSQL host ('localhost' for enabled SSH Tunnel)
     "host": "localhost"
