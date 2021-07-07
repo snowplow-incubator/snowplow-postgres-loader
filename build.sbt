@@ -56,6 +56,7 @@ lazy val loader = project
   .settings(BuildSettings.addExampleConfToTestCp)
   .settings(BuildSettings.assemblySettings)
   .settings(BuildSettings.dynVerSettings)
+  .settings(BuildSettings.testSettings)
   .settings(
     libraryDependencies ++= Seq(
       Dependencies.circeConfig,
@@ -71,3 +72,4 @@ lazy val loader = project
   .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+

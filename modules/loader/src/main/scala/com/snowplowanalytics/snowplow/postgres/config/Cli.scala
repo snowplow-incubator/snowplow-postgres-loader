@@ -64,7 +64,7 @@ object Cli {
           .catchOnly[IllegalArgumentException](new String(Base64.getDecoder.decode(string)))
           .leftMap(_.getMessage)
           .map(Source.fromString)
-        else Either.catchOnly[InvalidPathException](Paths.get(string)).leftMap(_.getMessage).map(p => Source.fromFile(p.toFile))
+      else Either.catchOnly[InvalidPathException](Paths.get(string)).leftMap(_.getMessage).map(p => Source.fromFile(p.toFile))
     result.leftMap(error => s"Cannot parse as ${if (encoded) "base64-encoded JSON" else "FS path"}: $error").toValidatedNel
   }
 
@@ -84,7 +84,15 @@ object Cli {
       resolved <- Either
         .catchNonFatal(ConfigFactory.parseString(text).resolve)
         .leftMap(e => s"Could not parse config: ${e.getMessage}")
-    } yield ConfigFactory.load(resolved.withFallback(ConfigFactory.load().getConfig("snowplow")))
+    } yield namespaced(ConfigFactory.load(namespaced(resolved.withFallback(namespaced(ConfigFactory.load())))))
+
+  /** Optionally give precedence to configs wrapped in a "snowplow" block. To help avoid polluting config namespace */
+  private def namespaced(config: LightbendConfig): LightbendConfig = {
+    if (config.hasPath("snowplow"))
+      config.getConfig("snowplow").withFallback(config.withoutPath("snowplow"))
+    else
+      config
+  }
 
   val resolver = Opts.option[String](
     long = "resolver",
