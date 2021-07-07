@@ -5,27 +5,14 @@
     "cacheTtl": 600,
     "repositories": [
       {
-        "name": "Iglu Central",
+        "name": "Iglu Central Mirror",
         "priority": 1,
         "vendorPrefixes": [
           "com.snowplowanalytics"
         ],
         "connection": {
           "http": {
-            "uri": "http://iglucentral.com"
-          }
-        }
-      },
-
-      {
-        "name": "Iglu Central - Mirror 01",
-        "priority": 1,
-        "vendorPrefixes": [
-          "com.snowplowanalytics"
-        ],
-        "connection": {
-          "http": {
-            "uri": "http://mirror01.iglucentral.com"
+            "uri": "http://my-iglu-mirror.example.com"
           }
         }
       }

@@ -9,7 +9,7 @@
 
 Assuming [Docker][docker] is installed:
 
-1. Add own [`config.json`][config] (specify connection and stream details)
+1. Add own `config.hocon` to specify connection and stream details, using [the examples][config] as a guide and [the docs site][config-docs] as a reference.
 2. Add own [`resolver.json`][resolver] (all schemas must be on [Iglu Server 0.6.0+][iglu-server])
 3. Run the Docker image:
 
@@ -17,7 +17,7 @@ Assuming [Docker][docker] is installed:
 $ docker run --rm -v $PWD/config:/snowplow/config \
     snowplow/snowplow-postgres-loader:latest \
     --resolver /snowplow/config/resolver.json \
-    --config /snowplow/config/config.json
+    --config /snowplow/config/config.hocon
 ```
 
 ## Copyright and License
@@ -33,8 +33,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[config]: https://github.com/snowplow-incubator/snowplow-postgres-loader/blob/master/config/config.json
-[resolver]: https://github.com/snowplow-incubator/snowplow-postgres-loader/blob/master/config/resolver.json
+[config]: ./config/
+[resolver]: ./config/resolver.json
+[config-docs]: https://docs.snowplowanalytics.com/docs/pipeline-components-and-applications/loaders-storage-targets/snowplow-postgres-loader/postgres-loader-configuration-reference/
 
 [docker]: https://www.docker.com/
 [iglu-server]: https://github.com/snowplow-incubator/iglu-server
