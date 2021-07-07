@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.postgres.storage
 
 import cats.syntax.traverse._
 import cats.syntax.either._
+import cats.syntax.eq._
 import cats.instances.list._
 
 import doobie.ConnectionIO
@@ -22,6 +23,7 @@ import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.SchemaKey
 import com.snowplowanalytics.snowplow.postgres.logging.Slf4jLogHandler
+import definitions.EventsTableName
 
 /** Functions to query the storage for state and metadata */
 object query {
@@ -55,5 +57,5 @@ object query {
       }
 
   def getComments(schema: String): ConnectionIO[List[Either[CommentIssue, SchemaKey]]] =
-    listTables(schema).flatMap(_.traverse(getComment(schema)))
+    listTables(schema).flatMap(_.filterNot(_ === EventsTableName).traverse(getComment(schema)))
 }

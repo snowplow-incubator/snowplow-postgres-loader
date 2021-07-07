@@ -30,7 +30,6 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.{SchemaList => DdlSchemaL
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.postgres.shredding.schema.fetch
-import com.snowplowanalytics.snowplow.postgres.shredding.transform.Atomic
 import com.snowplowanalytics.snowplow.postgres.streaming.IgluErrors
 import com.snowplowanalytics.snowplow.postgres.streaming.sink.Insert
 
@@ -90,16 +89,10 @@ object ddl {
 
         DdlSchemaList.fromSchemaList(list, fetch[F](resolver)).leftMap(IgluErrors.of).map { list =>
           val statement = generator(list)
-          val tableName = getTableName(origin)
+          val tableName = StringUtils.getTableName(SchemaMap(origin))
           statement.update().run.void *>
             sql.commentTable(schema, tableName, list.latest)
         }
       }
   }
-
-  def getTableName(schemaKey: SchemaKey): String =
-    schemaKey match {
-      case Atomic => "events"
-      case other  => StringUtils.getTableName(SchemaMap(other))
-    }
 }

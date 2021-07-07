@@ -23,6 +23,7 @@ import doobie.implicits._
 import doobie.util.transactor.Transactor
 
 import query.tableExists
+import definitions.EventsTableName
 
 object utils {
 
@@ -31,12 +32,12 @@ object utils {
   def prepareEventsTable(schema: String): ConnectionIO[Boolean] = {
     val create = ddl.createEventsTable(schema).as(false)
     val exists = Monad[ConnectionIO].pure(true)
-    Monad[ConnectionIO].ifM(tableExists(schema, "events"))(exists, create)
+    Monad[ConnectionIO].ifM(tableExists(schema, EventsTableName))(exists, create)
   }
 
   def prepare[F[_]: Sync](schema: String, xa: Transactor[F]): F[Unit] =
     prepareEventsTable(schema).transact(xa).flatMap {
-      case true  => Sync[F].delay(logger.info(s"$schema.events table already exists"))
-      case false => Sync[F].delay(logger.info(s"$schema.events table created"))
+      case true  => Sync[F].delay(logger.info(s"$schema.$EventsTableName table already exists"))
+      case false => Sync[F].delay(logger.info(s"$schema.$EventsTableName table created"))
     }
 }

@@ -36,6 +36,7 @@ import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.postgres.config.DBConfig.JdbcUri
+import com.snowplowanalytics.snowplow.postgres.storage.definitions.EventsTableName
 
 trait Database extends Specification with BeforeAfterEach {
   import Database._
@@ -70,8 +71,10 @@ object Database {
                         characterMaximumLength: Option[Int]
   )
 
-  def query: IO[List[UUID]] =
-    fr"SELECT event_id FROM events".query[UUID].to[List].transact(xa)
+  def query: IO[List[UUID]] = {
+    val tablefr = Fragment.const0(EventsTableName)
+    fr"SELECT event_id FROM $tablefr".query[UUID].to[List].transact(xa)
+  }
 
   def count(table: String): IO[Int] =
     (fr"SELECT count(*) FROM " ++ Fragment.const(table)).query[Int].unique.transact(xa)

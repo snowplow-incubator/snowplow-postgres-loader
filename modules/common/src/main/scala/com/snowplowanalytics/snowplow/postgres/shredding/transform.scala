@@ -35,6 +35,7 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.FlatSchema
 
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Failure, FailureDetails, Payload, Processor}
+import com.snowplowanalytics.snowplow.postgres.storage.definitions.EventsTableName
 import Entity.Column
 import Shredded.{ShreddedSelfDescribing, ShreddedSnowplow}
 
@@ -103,7 +104,7 @@ object transform {
           .map { cols =>
             val columns = cols.collect { case Some(c) => c }
             val tableName = data.schema match {
-              case Atomic => "events"
+              case Atomic => EventsTableName
               case other  => StringUtils.getTableName(SchemaMap(other))
             }
             ShreddedSelfDescribing(Entity(tableName, data.schema, columns))
