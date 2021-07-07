@@ -1,0 +1,33 @@
+{
+  "input": {
+    # Enable the Pubsub source
+    "type": "PubSub"
+    # Your GCP project id
+    "projectId": "my-project"
+    # Your GCP PubSub subscription id
+    "subscriptionId": "my-subscription"
+  }
+
+  "output" : {
+    "type": "Postgres"
+    # PostgreSQL host ('localhost' for enabled SSH Tunnel)
+    "host": "localhost"
+    # PostgreSQL database port
+    "port": 5432
+    # PostgreSQL database name
+    "database": "snowplow"
+    # PostgreSQL user to load data
+    "username": "postgres"
+    # PostgreSQL password, either plain text or from an environment variable
+    "password": "mysecretpassword"
+    "password": ${?POSTGRES_PASSWORD}
+    # PostgreSQL database schema
+    "schema": "atomic"
+    # JDBC ssl mode
+    "sslMode": "REQUIRE"
+  }
+
+  # Kind of data stored in this instance. Either ENRICHED_EVENTS or JSON
+  "purpose": "ENRICHED_EVENTS"
+
+}

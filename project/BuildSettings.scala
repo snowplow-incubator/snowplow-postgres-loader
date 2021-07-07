@@ -107,4 +107,10 @@ object BuildSettings {
         oldStrategy(x)
     }
   )
+
+  /* Settings to ensure example config files can be resolved without error */
+  lazy val testSettings = Seq(
+    Test / fork := true,
+    Test / envVars := Map("POSTGRES_PASSWORD" -> "mysecretpassword")
+  )
 }

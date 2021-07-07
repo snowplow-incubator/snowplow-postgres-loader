@@ -26,18 +26,105 @@ class CliSpec extends Specification {
   implicit val ioClock: Clock[IO] = Clock.create[IO]
 
   "Cli.parse" should {
-    "accept example config" >> {
-      val config = Paths.get(getClass.getResource("/config.hocon.sample").toURI)
+    "accept example minimal kinesis config" >> {
+      val config = Paths.get(getClass.getResource("/config.kinesis.minimal.hocon").toURI)
       val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
       val expected = LoaderConfig(
         Source.Kinesis(
-          "acme-postgres-loader",
+          "snowplow-postgres-loader",
           "enriched-events",
           Region.EU_CENTRAL_1,
           InitPosition.TrimHorizon,
           Source.Kinesis.Retrieval.FanOut
+        ),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept example extended kinesis config" >> {
+      val config = Paths.get(getClass.getResource("/config.kinesis.reference.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.Kinesis(
+          "snowplow-postgres-loader",
+          "enriched-events",
+          Region.EU_CENTRAL_1,
+          InitPosition.TrimHorizon,
+          Source.Kinesis.Retrieval.FanOut
+        ),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept example minimal pubsub config" >> {
+      val config = Paths.get(getClass.getResource("/config.pubsub.minimal.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.PubSub(
+          "my-project",
+          "my-subscription"
+        ),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept example extended pubsub config" >> {
+      val config = Paths.get(getClass.getResource("/config.pubsub.reference.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.PubSub(
+          "my-project",
+          "my-subscription"
         ),
         DBConfig(
           "localhost",

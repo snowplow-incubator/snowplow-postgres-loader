@@ -1,0 +1,17 @@
+# The minimum required config options for loading from PubSub
+{
+  "input": {
+    "type": "PubSub"
+    "projectId": "my-project"
+    "subscriptionId": "my-subscription"
+  }
+
+  "output" : {
+    "type": "Postgres"
+    "host": "localhost"
+    "database": "snowplow"
+    "username": "postgres"
+    "password": ${POSTGRES_PASSWORD}
+    "schema": "atomic"
+  }
+}
