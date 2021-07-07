@@ -13,7 +13,6 @@
 package com.snowplowanalytics.snowplow.postgres.config
 
 import java.nio.file.Paths
-import java.util.UUID
 
 import cats.effect.{Clock, IO}
 
@@ -33,8 +32,6 @@ class CliSpec extends Specification {
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
       val expected = LoaderConfig(
-        "Acme Ltd. Snowplow Postgres",
-        UUID.fromString("5c5e4353-4eeb-43da-98f8-2de6dc7fa947"),
         Source.Kinesis(
           "acme-postgres-loader",
           "enriched-events",

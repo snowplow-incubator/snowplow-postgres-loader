@@ -1,9 +1,4 @@
 {
-  # Human-readable storage target name, used only for logging
-  "name": "Acme Ltd. Snowplow Postgres"
-  # Machine-readable unique identifier
-  "id": "5c5e4353-4eeb-43da-98f8-2de6dc7fa947"
-
   "input": {
     # Enable the Kinesis source
     "type": "Kinesis"
