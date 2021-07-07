@@ -27,7 +27,7 @@ class CliSpec extends Specification {
 
   "Cli.parse" should {
     "accept example config" >> {
-      val config = Paths.get(getClass.getResource("/config.hocon.sample").toURI)
+      val config = Paths.get(getClass.getResource("/config.hocon.reference").toURI)
       val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
