@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.config
 
-import java.util.{Date, UUID}
+import java.util.Date
 import java.time.Instant
 
 import scala.jdk.CollectionConverters._
@@ -29,9 +29,7 @@ import LoaderConfig.{Purpose, Source}
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionInStreamExtended}
 
-case class LoaderConfig(name: String,
-                        id: UUID,
-                        input: Source,
+case class LoaderConfig(input: Source,
                         output: DBConfig,
                         purpose: Purpose,
                         monitoring: LoaderConfig.Monitoring
