@@ -203,12 +203,15 @@ object definitions {
       }
 
     val schemaFr = Fragment.const0(schema)
+    val tableFr = Fragment.const0(EventsTableName)
 
-    fr"""CREATE TABLE $schemaFr.events ($columns) WITH (OIDS=FALSE)"""
+    fr"""CREATE TABLE $schemaFr.$tableFr ($columns) WITH (OIDS=FALSE)"""
   }
 
   def columnToString(columnName: String, dataType: Type, nullable: Boolean) = {
     val notNull = if (nullable) "NULL" else "NOT NULL"
     s""""$columnName" ${dataType.ddl} $notNull"""
   }
+
+  val EventsTableName = "events"
 }
