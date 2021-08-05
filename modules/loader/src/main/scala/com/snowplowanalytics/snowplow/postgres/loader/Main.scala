@@ -12,7 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.loader
 
-import cats.effect.{ExitCode, IO, IOApp}
+import cats.effect.{IOApp, IO, ExitCode}
 
 import org.log4s.getLogger
 
@@ -23,7 +23,7 @@ import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 import com.snowplowanalytics.snowplow.postgres.resources
 import com.snowplowanalytics.snowplow.postgres.storage.utils
-import com.snowplowanalytics.snowplow.postgres.streaming.{UnorderedPipe, sink, source}
+import com.snowplowanalytics.snowplow.postgres.streaming.{sink, source, UnorderedPipe}
 
 object Main extends IOApp {
 
@@ -32,7 +32,7 @@ object Main extends IOApp {
   val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   def run(args: List[String]): IO[ExitCode] =
-    Cli.parse[IO](args).value.flatMap {
+    Cli.parse[IO](args).flatMap(Cli.configPreCheck[IO]).value.flatMap {
       case Right(Cli(loaderConfig, iglu)) =>
         resources.initialize[IO](loaderConfig.output, iglu).use {
           case (blocker, xa, state) =>

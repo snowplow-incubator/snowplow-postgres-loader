@@ -1,0 +1,32 @@
+{
+  "input": {
+    # Enable the local event source
+    "type": "LocalFS"
+    # Path for event source. It can be directory or file.
+    # If it is directory, all the files under given directory will be read recursively.
+    # Also, given path can be both absolute path or relative path w.r.t. executable.
+    "path": "./tmp/example"
+  }
+
+  "output" : {
+    "type": "Postgres"
+    # PostgreSQL host ('localhost' for enabled SSH Tunnel)
+    "host": "localhost"
+    # PostgreSQL database port
+    "port": 5432
+    # PostgreSQL database name
+    "database": "snowplow"
+    # PostgreSQL user to load data
+    "username": "postgres"
+    # PostgreSQL password, either plain text or from an environment variable
+    "password": "mysecretpassword"
+    "password": ${?POSTGRES_PASSWORD}
+    # PostgreSQL database schema
+    "schema": "atomic"
+    # JDBC ssl mode
+    "sslMode": "REQUIRE"
+  }
+
+  # Kind of data stored in this instance. Either ENRICHED_EVENTS or JSON
+  "purpose": "ENRICHED_EVENTS"
+}

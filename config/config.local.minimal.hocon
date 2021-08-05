@@ -1,0 +1,16 @@
+# The minimum required config options for loading from local source
+{
+  "input": {
+    "type": "LocalFS"
+    "path": "/tmp/example"
+  }
+
+  "output" : {
+    "type": "Postgres"
+    "host": "localhost"
+    "database": "snowplow"
+    "username": "postgres"
+    "password": ${POSTGRES_PASSWORD}
+    "schema": "atomic"
+  }
+}

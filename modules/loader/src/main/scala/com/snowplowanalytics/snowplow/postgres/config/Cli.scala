@@ -14,6 +14,7 @@ package com.snowplowanalytics.snowplow.postgres.config
 
 import java.nio.file.{InvalidPathException, Paths}
 import java.util.Base64
+import java.nio.file.Files
 
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
@@ -35,6 +36,8 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 import com.monovore.decline._
 
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
 
 case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json])
 
@@ -48,6 +51,20 @@ object Cli {
       case Left(help)       => EitherT.leftT[F, Cli[F]](help.show)
       case Right(rawConfig) => fromRawConfig(rawConfig)
     }
+
+  def configPreCheck[F[_]: Sync](cli: Cli[F]): EitherT[F, String, Cli[F]] =
+    cli.config.input match {
+      case LocalFS(pathInfo) =>
+        fileExists(pathInfo)
+          .attemptT
+          .leftMap(_.toString)
+          .ensure(s"Local source path [${pathInfo.allPath}] does not exist")(identity)
+          .as(cli)
+      case _ => EitherT.pure(cli)
+    }
+
+  private def fileExists[F[_]: Sync](pathInfo: PathInfo): F[Boolean] =
+    Sync[F].delay(Files.exists(pathInfo.allPath))
 
   private def fromRawConfig[F[_]: Sync: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {

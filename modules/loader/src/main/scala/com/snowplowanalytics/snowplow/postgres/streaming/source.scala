@@ -30,7 +30,6 @@ import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
-
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
@@ -52,6 +51,9 @@ import software.amazon.kinesis.retrieval.fanout.FanOutConfig
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
+
+import blobstore.fs.FileStore
+import blobstore.Store
 
 object source {
 
@@ -83,36 +85,46 @@ object source {
         val pubsubConfig = PubsubGoogleConsumerConfig[F](onFailedTerminate = pubsubOnFailedTerminate[F])
         PubsubGoogleConsumer
           .subscribeAndAck[F, Either[BadData, Data]](blocker, project, subscription, pubsubErrorHandler[F], pubsubConfig)
+      case Source.LocalFS(pathInfo) =>
+        val store: Store[F] = FileStore[F](pathInfo.pathType.fsroot, blocker)
+        store.list(pathInfo.path, recursive = true)
+          .flatMap { p =>
+            store.get(p, chunkSize = 32 * 1024)
+              .through(fs2.text.utf8Decode)
+              .through(fs2.text.lines)
+              .filter(_.nonEmpty)
+              .map(parseItem(purpose))
+          }
     }
 
   /**
-    * Parse Kinesis record into a valid Loader's record, either enriched event or self-describing JSON,
+    * Parse Kinesis record into a valid Loader's record
+    */
+  def parseRecord(kind: Purpose, record: CommittableRecord): Either[BadData, Data] =
+    Either.catchNonFatal(StandardCharsets.UTF_8.decode(record.record.data()).toString)
+      .leftMap { _ =>
+        val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
+        kind match {
+          case Purpose.Enriched =>
+            val badRow = BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
+            BadData.BadEnriched(badRow)
+          case Purpose.SelfDescribing =>
+            BadData.BadJson(payload, "Cannot deserialize self-describing JSON from Kinesis record")
+        }
+      }
+      .flatMap(parseItem(kind))
+
+  /**
+    * Parse given item into a valid Loader's record, either enriched event or self-describing JSON,
     * depending on purpose of the Loader
     */
-  def parseRecord(kind: Purpose, record: CommittableRecord): Either[BadData, Data] = {
-    val string =
-      try StandardCharsets.UTF_8.decode(record.record.data()).toString.asRight[BadData]
-      catch {
-        case _: IllegalArgumentException =>
-          val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
-          kind match {
-            case Purpose.Enriched =>
-              val badRow = BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
-              BadData.BadEnriched(badRow).asLeft
-            case Purpose.SelfDescribing =>
-              BadData.BadJson(payload, "Cannot deserialize self-describing JSON from Kinesis record").asLeft
-          }
-      }
-
-    string.flatMap { payload =>
-      kind match {
-        case Purpose.Enriched =>
-          parseEventString(payload).map(Data.Snowplow.apply)
-        case Purpose.SelfDescribing =>
-          parseJson(payload).map(Data.SelfDescribing.apply)
-      }
+  def parseItem(kind: Purpose)(item: String): Either[BadData, Data] =
+    kind match {
+      case Purpose.Enriched =>
+        parseEventString(item).map(Data.Snowplow.apply)
+      case Purpose.SelfDescribing =>
+        parseJson(item).map(Data.SelfDescribing.apply)
     }
-  }
 
   def parseEventString(s: String): Either[BadData, Event] =
     Event.parse(s).toEither.leftMap { error =>
@@ -127,12 +139,7 @@ object source {
       .leftMap(error => BadData.BadJson(s, error))
 
   def pubsubDataDecoder(purpose: Purpose): MessageDecoder[Either[BadData, Data]] =
-    purpose match {
-      case Purpose.Enriched =>
-        (message: Array[Byte]) => parseEventString(new String(message)).map(Data.Snowplow.apply).asRight
-      case Purpose.SelfDescribing =>
-        (message: Array[Byte]) => parseJson(new String(message)).map(Data.SelfDescribing.apply).asRight
-    }
+    (message: Array[Byte]) => parseItem(purpose)(new String(message)).asRight
 
   def pubsubErrorHandler[F[_]: Sync](message: PubsubMessage, error: Throwable, ack: F[Unit], nack: F[Unit]): F[Unit] = {
     val _ = (error, nack)

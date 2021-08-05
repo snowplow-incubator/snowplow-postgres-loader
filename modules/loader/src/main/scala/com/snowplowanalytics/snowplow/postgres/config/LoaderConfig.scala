@@ -14,20 +14,24 @@ package com.snowplowanalytics.snowplow.postgres.config
 
 import java.util.Date
 import java.time.Instant
+import java.nio.file.{Path => JPath}
 
 import scala.jdk.CollectionConverters._
 
 import cats.syntax.either._
 
 import io.circe.Decoder
-//import io.circe.generic.semiauto.deriveDecoder
 import io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 import io.circe.generic.extras.Configuration
+
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
 
 import LoaderConfig.{Purpose, Source}
 
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionInStreamExtended}
+
+import blobstore.Path
 
 case class LoaderConfig(input: Source,
                         output: DBConfig,
@@ -107,8 +111,6 @@ object LoaderConfig {
                        region: Region,
                        initialPosition: InitPosition,
                        retrievalMode: Kinesis.Retrieval) extends Source
-    case class PubSub(projectId: String, subscriptionId: String) extends Source
-
     object Kinesis {
       sealed trait Retrieval
 
@@ -126,6 +128,65 @@ object LoaderConfig {
         }
       }
     }
+
+    case class LocalFS(path: PathInfo) extends Source
+    object LocalFS {
+      /**
+        * Contains information about the given path
+        * @param path Path which contains events
+        * @param pathType Specifies whether given path is absolute or relative
+        */
+      case class PathInfo(path: Path, pathType: PathType) {
+        /**
+          * Combines root of the path and path itself.
+          * Path root is determined according to the path type.
+          */
+        def allPath: JPath = JPath.of(pathType.fsroot.toString, "/", path.toString)
+      }
+
+      object PathInfo {
+        implicit val pathDecoder: Decoder[PathInfo] =
+          Decoder.decodeString.emap { pathStr =>
+            Path.fromString(pathStr).toRight(s"Invalid path: $pathStr")
+              .map(PathInfo(_, PathType.determineType(pathStr)))
+          }
+      }
+
+      /**
+        * Represents type of the path
+        */
+      sealed trait PathType {
+        /**
+          * Gives file system root according to the path type
+          */
+        def fsroot: JPath =
+          this match {
+            case PathType.Absolute => JPath.of("/")
+            case PathType.Relative => JPath.of("./")
+          }
+      }
+
+      object PathType {
+        /**
+          * If path starts from root directory, it's type is absolute
+          */
+        case object Absolute extends PathType
+
+        /**
+          * If path does not start from root directory, it's type is relative
+          */
+        case object Relative extends PathType
+
+        /**
+          * Determine type of the path according to where it starts
+          */
+        def determineType(path: String): PathType =
+          if (path.startsWith("/")) LocalFS.PathType.Absolute
+          else LocalFS.PathType.Relative
+      }
+    }
+
+    case class PubSub(projectId: String, subscriptionId: String) extends Source
 
     implicit def ioCirceConfigSourceDecoder: Decoder[Source] =
       deriveConfiguredDecoder[Source]

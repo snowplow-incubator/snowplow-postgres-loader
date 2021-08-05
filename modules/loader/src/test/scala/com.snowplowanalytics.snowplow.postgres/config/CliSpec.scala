@@ -14,11 +14,14 @@ package com.snowplowanalytics.snowplow.postgres.config
 
 import java.nio.file.Paths
 
-import cats.effect.{Clock, IO}
+import cats.effect.{IO, Clock}
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Monitoring, Purpose, Source}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source, Monitoring}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
 
 import software.amazon.awssdk.regions.Region
+
+import blobstore.Path
 
 import org.specs2.mutable.Specification
 
@@ -126,6 +129,81 @@ class CliSpec extends Specification {
           "my-project",
           "my-subscription"
         ),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept example minimal local config" >> {
+      val config = Paths.get(getClass.getResource("/config.local.minimal.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.LocalFS(PathInfo(Path.fromString("/tmp/example").get, Source.LocalFS.PathType.Absolute)),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept example extended local config" >> {
+      val config = Paths.get(getClass.getResource("/config.local.reference.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.LocalFS(PathInfo(Path.fromString("./tmp/example").get, Source.LocalFS.PathType.Relative)),
+        DBConfig(
+          "localhost",
+          5432,
+          "snowplow",
+          "postgres",
+          "mysecretpassword",
+          "REQUIRE",
+          "atomic"
+        ),
+        Purpose.Enriched,
+        Monitoring(Monitoring.Metrics(true))
+      )
+      val result = Cli.parse[IO](argv).value.unsafeRunSync()
+      result must beRight.like {
+        case Cli(config, _) => config must beEqualTo(expected)
+      }
+    }
+
+    "accept local config with relative path" >> {
+      val config = Paths.get(getClass.getResource("/config.local.relativetest.hocon").toURI)
+      val resolver = Paths.get(getClass.getResource("/resolver.json").toURI)
+      val argv = List("--config", config.toString, "--resolver", resolver.toString)
+
+      val expected = LoaderConfig(
+        Source.LocalFS(PathInfo(Path.fromString("tmp/example").get, Source.LocalFS.PathType.Relative)),
         DBConfig(
           "localhost",
           5432,
