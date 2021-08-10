@@ -11,12 +11,22 @@
     # Either TRIM_HORIZON or LATEST
     "initialPosition": "TRIM_HORIZON"
 
-    # Optional, set the  polling mode for retrieving records. Default is FanOut
+    # Optional, set the polling mode for retrieving records. Default is FanOut
     # "retrievalMode": "FanOut"
     # "retrievalMode": {
     #   "type": "Polling"
     #   "maxRecords": 1000
     # }
+
+    # Optional, configure the checkpointer.
+    "checkpointSettings": {
+      # The max number of records to aggregate before checkpointing the records.
+      # Default is 1000.
+      "maxBatchSize": 1000
+      # The max amount of time to wait before checkpointing the records. It is in milliseconds.
+      # Default is 10000 milliseconds.
+      "maxBatchWait": 10000
+    }
   }
 
   "output" : {

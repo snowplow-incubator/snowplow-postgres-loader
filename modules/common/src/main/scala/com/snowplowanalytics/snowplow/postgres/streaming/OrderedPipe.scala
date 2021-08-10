@@ -18,35 +18,35 @@ import doobie.hikari.HikariTransactor
 
 /** Evaluates effects, possibly concurrently, and emits the results downstream in any order
   */
-trait UnorderedPipe[F[_]] {
+trait OrderedPipe[F[_]] {
   def apply[A, B](f: A => F[B]): Pipe[F, A, B]
 }
 
-object UnorderedPipe {
+object OrderedPipe {
 
-  /** An UnorderedPipe in which results are emitted in the same order as the inputs
+  /** An OrderedPipe in which results are emitted in the same order as the inputs
     *
-   *  Use this UnorderedPipe when a `Concurrent[F]` is not available
+   *  Use this OrderedPipe when a `Concurrent[F]` is not available
     */
-  def sequential[F[_]]: UnorderedPipe[F] =
-    new UnorderedPipe[F] {
+  def sequential[F[_]]: OrderedPipe[F] =
+    new OrderedPipe[F] {
       override def apply[A, B](f: A => F[B]): Pipe[F, A, B] =
         _.evalMap(f)
     }
 
-  /** An UnorderedPipe that evaluates effects in parallel.
+  /** An OrderedPipe that evaluates effects in parallel.
     */
-  def concurrent[F[_]: Concurrent](maxConcurrent: Int): UnorderedPipe[F] =
-    new UnorderedPipe[F] {
+  def concurrent[F[_]: Concurrent](maxConcurrent: Int): OrderedPipe[F] =
+    new OrderedPipe[F] {
       override def apply[A, B](f: A => F[B]): Pipe[F, A, B] =
-        _.parEvalMapUnordered(maxConcurrent)(f)
+        _.parEvalMap(maxConcurrent)(f)
     }
 
-  /** A concurrent UnorderedPipe whose parallelism matches the size of the transactor's underlying connection pool.
+  /** A concurrent OrderedPipe whose parallelism matches the size of the transactor's underlying connection pool.
     *
-   * Use this UnorderedPipe whenever the effect requires a database connection
+   * Use this OrderedPipe whenever the effect requires a database connection
     */
-  def forTransactor[F[_]: Concurrent](xa: HikariTransactor[F]): UnorderedPipe[F] =
+  def forTransactor[F[_]: Concurrent](xa: HikariTransactor[F]): OrderedPipe[F] =
     concurrent(xa.kernel.getMaximumPoolSize)
 
 }

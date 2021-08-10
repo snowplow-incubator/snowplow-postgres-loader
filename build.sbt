@@ -69,7 +69,7 @@ lazy val loader = project
       Dependencies.specs2
     )
   )
-  .dependsOn(common)
+  .dependsOn(common % "compile->compile;test->test")
   .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
 addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")

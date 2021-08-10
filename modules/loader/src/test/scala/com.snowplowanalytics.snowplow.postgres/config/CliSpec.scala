@@ -14,6 +14,8 @@ package com.snowplowanalytics.snowplow.postgres.config
 
 import java.nio.file.Paths
 
+import scala.concurrent.duration._
+
 import cats.effect.{IO, Clock}
 
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source, Monitoring}
@@ -40,7 +42,8 @@ class CliSpec extends Specification {
           "enriched-events",
           Region.EU_CENTRAL_1,
           InitPosition.TrimHorizon,
-          Source.Kinesis.Retrieval.FanOut
+          Source.Kinesis.Retrieval.FanOut,
+          Source.Kinesis.CheckpointSettings(1000, 10000.milliseconds)
         ),
         DBConfig(
           "localhost",
@@ -71,7 +74,8 @@ class CliSpec extends Specification {
           "enriched-events",
           Region.EU_CENTRAL_1,
           InitPosition.TrimHorizon,
-          Source.Kinesis.Retrieval.FanOut
+          Source.Kinesis.Retrieval.FanOut,
+          Source.Kinesis.CheckpointSettings(1000, 10000.milliseconds)
         ),
         DBConfig(
           "localhost",

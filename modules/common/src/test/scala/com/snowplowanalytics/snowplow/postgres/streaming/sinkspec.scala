@@ -35,7 +35,7 @@ class sinkspec extends Database {
   import Database._
 
   val processor = Processor("pgloader", "test")
-  val unorderedPipe = UnorderedPipe.concurrent[IO](5)
+  val orderedPipe = OrderedPipe.concurrent[IO](5)
 
   "goodSink" should {
     "sink a single good event" >> {
@@ -48,7 +48,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(sink.goodSink(unorderedPipe, state, igluClient, processor)).compile.drain.action
+        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
         eventIds <- query.action
         uaParserCtxs <- count("com_snowplowanalytics_snowplow_ua_parser_context_1").action
       } yield (eventIds, uaParserCtxs)
@@ -70,7 +70,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(sink.goodSink(unorderedPipe, state, igluClient, processor)).compile.drain.action
+        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
         eventIds <- query.action
         rows <- count("com_getvero_bounced_1").action
       } yield (eventIds, rows)
@@ -109,7 +109,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(sink.goodSink(unorderedPipe, state, igluClient, processor)).compile.drain.action
+        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
         rows <- count("me_chuwy_pg_test_1").action
         table <- describeTable("me_chuwy_pg_test_1").action
       } yield (rows, table)
