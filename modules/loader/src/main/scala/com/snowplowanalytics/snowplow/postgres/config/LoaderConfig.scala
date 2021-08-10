@@ -17,21 +17,24 @@ import java.time.Instant
 import java.nio.file.{Path => JPath}
 
 import scala.jdk.CollectionConverters._
+import scala.concurrent.duration._
 
 import cats.syntax.either._
 
-import io.circe.Decoder
+import fs2.aws.kinesis.KinesisCheckpointSettings
+
+import io.circe.{Decoder}
 import io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 import io.circe.generic.extras.Configuration
-
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
-
-import LoaderConfig.{Purpose, Source}
+import io.circe.config.syntax._
 
 import software.amazon.awssdk.regions.Region
 import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionInStreamExtended}
 
 import blobstore.Path
+
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
+import LoaderConfig.{Purpose, Source}
 
 case class LoaderConfig(input: Source,
                         output: DBConfig,
@@ -110,7 +113,8 @@ object LoaderConfig {
                        streamName: String,
                        region: Region,
                        initialPosition: InitPosition,
-                       retrievalMode: Kinesis.Retrieval) extends Source
+                       retrievalMode: Kinesis.Retrieval,
+                       checkpointSettings: Kinesis.CheckpointSettings) extends Source
     object Kinesis {
       sealed trait Retrieval
 
@@ -127,21 +131,35 @@ object LoaderConfig {
           }.or(deriveConfiguredDecoder[Retrieval])
         }
       }
+
+      case class CheckpointSettings(maxBatchSize: Int, maxBatchWait: FiniteDuration) {
+        def unwrap: KinesisCheckpointSettings =
+          KinesisCheckpointSettings(maxBatchSize, maxBatchWait).toOption.get
+      }
+
+      object CheckpointSettings {
+        implicit val kinesisCheckpointSettingsDecoder: Decoder[CheckpointSettings] =
+          deriveConfiguredDecoder[CheckpointSettings].emap { settings =>
+            KinesisCheckpointSettings(settings.maxBatchSize, settings.maxBatchWait)
+              .leftMap(_.toString)
+              .map(_ => settings)
+          }
+      }
     }
 
     case class LocalFS(path: PathInfo) extends Source
     object LocalFS {
       /**
         * Contains information about the given path
-        * @param path Path which contains events
+        * @param value Path which contains events
         * @param pathType Specifies whether given path is absolute or relative
         */
-      case class PathInfo(path: Path, pathType: PathType) {
+      case class PathInfo(value: Path, pathType: PathType) {
         /**
           * Combines root of the path and path itself.
           * Path root is determined according to the path type.
           */
-        def allPath: JPath = JPath.of(pathType.fsroot.toString, "/", path.toString)
+        def allPath: JPath = JPath.of(pathType.fsroot.toString, "/", value.toString)
       }
 
       object PathInfo {
@@ -186,7 +204,16 @@ object LoaderConfig {
       }
     }
 
-    case class PubSub(projectId: String, subscriptionId: String) extends Source
+    case class PubSub(projectId: String, subscriptionId: String, checkpointSettings: PubSub.CheckpointSettings) extends Source
+
+    object PubSub {
+      case class CheckpointSettings(maxConcurrent: Int)
+
+      object CheckpointSettings {
+        implicit val pubsubCheckpointSettingsDecoder: Decoder[CheckpointSettings] =
+          deriveConfiguredDecoder[CheckpointSettings]
+      }
+    }
 
     implicit def ioCirceConfigSourceDecoder: Decoder[Source] =
       deriveConfiguredDecoder[Source]

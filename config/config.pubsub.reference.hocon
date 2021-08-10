@@ -6,6 +6,13 @@
     "projectId": "my-project"
     # Your GCP PubSub subscription id
     "subscriptionId": "my-subscription"
+
+    # Optional, configure the checkpointer.
+    "checkpointSettings": {
+      # The max number of concurrent effects for checkpointer.
+      # Default is 100.
+      "maxConcurrent": 100
+    }
   }
 
   "output" : {

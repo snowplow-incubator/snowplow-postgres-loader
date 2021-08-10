@@ -17,8 +17,6 @@ import cats.implicits._
 
 import cats.effect.{Clock, ContextShift, Sync}
 
-import fs2.Pipe
-
 import doobie._
 import doobie.implicits._
 
@@ -42,38 +40,25 @@ object sink {
 
   type Insert = ConnectionIO[Unit]
 
+  def sinkResult[F[_]: Sync: ContextShift: Clock: DB](
+    state: State[F],
+    client: Client[F, Json],
+    processor: Processor
+  )(result: Either[BadData, Data]): F[Unit] =
+    result.fold(sinkBad[F], sinkGood[F](state, client, processor)(_).flatMap {
+      case Left(badData) => sinkBad[F](badData)
+      case Right(_) => Sync[F].unit
+    })
+
   /**
     * Sink good events into Postgres. During sinking, payloads go through all transformation steps
     * and checking the state of the DB itself.
-    * Events that could not be transformed (due Iglu errors or DB unavailability) are emitted from
-    * the pipe
-    * @param unorderdPipe pipe which might optimise by processing events concurrently
+    * Events that could not be transformed (due Iglu errors or DB unavailability) are emitted as bad data
     * @param state mutable Loader state
     * @param client Iglu Client
     * @param processor The actor processing these events
     */
-  def goodSink[F[_]: Sync: Clock: DB](unorderedPipe: UnorderedPipe[F],
-                                      state: State[F],
-                                      client: Client[F, Json],
-                                      processor: Processor
-  ): Pipe[F, Data, BadData] =
-    unorderedPipe(sinkPayload(state, client, processor)).andThen {
-      _.collect {
-        case Left(badData) => badData
-      }
-    }
-
-  /** Sink bad data coming directly into the `Pipe` */
-  def badSink[F[_]: Sync: ContextShift]: Pipe[F, BadData, Unit] =
-    _.evalMap {
-      case BadData.BadEnriched(row)        => Sync[F].delay(logger.warn(row.compact))
-      case BadData.BadJson(payload, error) => Sync[F].delay(logger.warn(s"Cannot parse $payload. $error"))
-    }
-
-  /** Implementation for [[goodSink]] */
-  def sinkPayload[F[_]: Sync: Clock: DB](state: State[F], client: Client[F, Json], processor: Processor)(
-    payload: Data
-  ): F[Either[BadData, Unit]] = {
+  def sinkGood[F[_]: Sync: Clock: DB](state: State[F], client: Client[F, Json], processor: Processor)(payload: Data): F[Either[BadData, Unit]] = {
     val result = for {
       entities <- payload match {
         case Data.Snowplow(event) =>
@@ -92,9 +77,14 @@ object sink {
           }
       }
     } yield insert
-
     result.value
   }
+  
+  def sinkBad[F[_]: Sync](badData: BadData): F[Unit] =
+    badData match {
+      case BadData.BadEnriched(row) => Sync[F].delay(logger.warn(s"Error for enriched event: ${row.compact}"))
+      case BadData.BadJson(payload, error) => Sync[F].delay(logger.warn(s"Cannot parse $payload. $error"))
+    }
 
   /**
     * Build an `INSERT` action for a single entity
