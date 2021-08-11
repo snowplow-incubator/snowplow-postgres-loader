@@ -48,11 +48,11 @@ object definitions {
     ("v_etl", Type.Varchar(100), true),
     // User and visit
     ("user_id", Type.Varchar(255), false),
-    ("user_ipaddress", Type.Varchar(45), false),
+    ("user_ipaddress", Type.Varchar(128), false),
     ("user_fingerprint", Type.Varchar(50), false),
-    ("domain_userid", Type.Varchar(36), false),
+    ("domain_userid", Type.Varchar(128), false),
     ("domain_sessionidx", Type.Integer, false),
-    ("network_userid", Type.Varchar(38), false),
+    ("network_userid", Type.Varchar(128), false),
     // Location
     ("geo_country", Type.Char(2), false),
     ("geo_region", Type.Char(3), false),
@@ -174,10 +174,10 @@ object definitions {
     // Time event was sent
     ("dvce_sent_tstamp", Type.Timestamp, false),
     // Referer
-    ("refr_domain_userid", Type.Varchar(36), false),
+    ("refr_domain_userid", Type.Varchar(128), false),
     ("refr_dvce_tstamp", Type.Timestamp, false),
     // Session ID
-    ("domain_sessionid", Type.Uuid, false),
+    ("domain_sessionid", Type.Varchar(128), false),
     // Derived Type.Timestamp
     ("derived_tstamp", Type.Timestamp, false),
     // Event schema
