@@ -71,9 +71,25 @@ object Database {
                         characterMaximumLength: Option[Int]
   )
 
+  case class PiiFields(domainUserId: String,
+                       networkUserId: String,
+                       domainSessionId: String,
+                       userIpAddress: String,
+                       refrDomainUserId: String
+  )
+
   def query: IO[List[UUID]] = {
     val tablefr = Fragment.const0(EventsTableName)
     fr"SELECT event_id FROM $tablefr".query[UUID].to[List].transact(xa)
+  }
+
+  def queryPiiFields: IO[List[PiiFields]] = {
+    val tablefr = Fragment.const0(EventsTableName)
+    fr"SELECT domain_userid, network_userid, domain_sessionid, user_ipaddress, refr_domain_userid FROM $tablefr"
+      .query[(String, String, String, String, String)]
+      .map(PiiFields.tupled)
+      .to[List]
+      .transact(xa)
   }
 
   def count(table: String): IO[Int] =

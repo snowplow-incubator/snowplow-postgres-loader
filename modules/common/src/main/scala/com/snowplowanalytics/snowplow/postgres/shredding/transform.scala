@@ -150,7 +150,7 @@ object transform {
     val data = event.ordered.parTraverse {
       case ("contexts" | "derived_contexts" | "unstruct_event", _) =>
         none.asRight.toEitherNel
-      case (key @ ("event_id" | "domain_sessionid"), Some(value)) =>
+      case (key @ "event_id", Some(value)) =>
         val error = castError("uuid") _
         value.fold(
           none.asRight.toEitherNel,
