@@ -174,7 +174,7 @@ object source {
           .retrievalSpecificConfig {
             config.retrievalMode match {
               case Source.Kinesis.Retrieval.FanOut =>
-                new FanOutConfig(kinesisClient)
+                new FanOutConfig(kinesisClient).streamName(config.streamName).applicationName(config.appName)
               case Source.Kinesis.Retrieval.Polling(maxRecords) =>
                 new PollingConfig(config.streamName, kinesisClient).maxRecords(maxRecords)
             }
