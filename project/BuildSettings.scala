@@ -36,7 +36,7 @@ object BuildSettings {
     crossScalaVersions := Seq(scala212, scala213),
     description := "Loading Snowplow enriched data into PostgreSQL in real-time",
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
-    parallelExecution in Test := false
+    Test / parallelExecution := false
   )
 
   lazy val buildInfoSettings = Seq(
@@ -46,19 +46,19 @@ object BuildSettings {
 
   /** Docker image settings */
   lazy val dockerSettings = Seq(
-    maintainer in Docker := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
+    Docker / maintainer := "Snowplow Analytics Ltd. <support@snowplowanalytics.com>",
     dockerBaseImage := "adoptopenjdk:11-jre-hotspot-focal",
-    daemonUser in Docker := "daemon",
+    Docker / daemonUser := "daemon",
     dockerUpdateLatest := true,
     dockerRepository := Some("snowplow"),
 
-    daemonUserUid in Docker := None,
-    defaultLinuxInstallLocation in Docker := "/opt/snowplow",
+    Docker / daemonUserUid := None,
+    Docker / defaultLinuxInstallLocation := "/opt/snowplow",
   )
 
   lazy val mavenSettings = Seq(
     publishArtifact := true,
-    publishArtifact in Test := false,
+    Test / publishArtifact := false,
     pomIncludeRepository := { _ => false },
     homepage := Some(url("http://snowplowanalytics.com")),
     developers := List(
@@ -80,13 +80,13 @@ object BuildSettings {
     coverageMinimum := 50,
     coverageFailOnMinimum := false,
     coverageExcludedPackages := "^target/.*",
-    (test in Test) := {
-      (coverageReport dependsOn (test in Test)).value
+    (Test / test) := {
+      (coverageReport dependsOn (Test / test)).value
     }
   )
 
   lazy val addExampleConfToTestCp = Seq(
-    unmanagedClasspath in Test += {
+    Test / unmanagedClasspath += {
       baseDirectory.value.getParentFile.getParentFile / "config"
     }
   )
