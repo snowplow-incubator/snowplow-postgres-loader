@@ -36,7 +36,7 @@ object Dependencies {
 
     val analyticsSdk = "2.1.0"
     val badRows      = "2.1.1"
-    val schemaDdl    = "0.13.0"
+    val schemaDdl    = "0.14.1"
     val igluClient   = "1.1.1"
 
     // Testing
