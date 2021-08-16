@@ -23,7 +23,7 @@ object Dependencies {
 
     // Scala third-party
     val decline      = "2.1.0"
-    val catsEffect   = "2.5.1"
+    val catsEffect   = "2.5.3"
     val circe        = "0.14.1"
     val circeConfig  = "0.8.0"
     val fs2Aws       = "3.1.1"
