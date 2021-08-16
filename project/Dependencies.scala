@@ -22,7 +22,7 @@ object Dependencies {
     val logback      = "1.2.5"
 
     // Scala third-party
-    val decline      = "2.0.0"
+    val decline      = "2.1.0"
     val catsEffect   = "2.5.1"
     val circe        = "0.14.1"
     val circeConfig  = "0.8.0"
