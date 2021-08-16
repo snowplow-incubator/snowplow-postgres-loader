@@ -19,7 +19,7 @@ import java.nio.file.Files
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.{Clock, Sync}
+import cats.effect.{Clock, Sync, Async}
 
 import com.typesafe.config.{Config => LightbendConfig, ConfigFactory}
 
@@ -46,7 +46,7 @@ object Cli {
   val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   /** Parse list of arguments, validate against schema and initialize */
-  def parse[F[_]: Sync: Clock](args: List[String]): EitherT[F, String, Cli[F]] =
+  def parse[F[_]: Async: Clock](args: List[String]): EitherT[F, String, Cli[F]] =
     command.parse(args) match {
       case Left(help)       => EitherT.leftT[F, Cli[F]](help.show)
       case Right(rawConfig) => fromRawConfig(rawConfig)
@@ -66,7 +66,7 @@ object Cli {
   private def fileExists[F[_]: Sync](pathInfo: PathInfo): F[Boolean] =
     Sync[F].delay(Files.exists(pathInfo.allPath))
 
-  private def fromRawConfig[F[_]: Sync: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
+  private def fromRawConfig[F[_]: Async: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {
       resolverJson <- loadJson(rawConfig.resolver).toEitherT[F]
       igluClient <- Client.parseDefault[F](resolverJson).leftMap(_.show)

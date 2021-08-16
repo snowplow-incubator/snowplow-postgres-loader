@@ -40,6 +40,7 @@ lazy val common = project
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,
+      Dependencies.igluClient,
       Dependencies.circeLiteral % Test,
       Dependencies.specs2,
       Dependencies.specs2Check,

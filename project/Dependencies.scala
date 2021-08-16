@@ -35,8 +35,9 @@ object Dependencies {
     val fs2BlobCore  = "0.7.3"
 
     val analyticsSdk = "2.1.0"
-    val badRows      = "2.1.0"
+    val badRows      = "2.1.1"
     val schemaDdl    = "0.13.0"
+    val igluClient   = "1.1.1"
 
     // Testing
     val specs2       = "4.9.4"
@@ -75,6 +76,7 @@ object Dependencies {
   val analyticsSdk = "com.snowplowanalytics" %% "snowplow-scala-analytics-sdk" % V.analyticsSdk
   val badRows      = "com.snowplowanalytics" %% "snowplow-badrows"             % V.badRows
   val schemaDdl    = "com.snowplowanalytics" %% "schema-ddl"                   % V.schemaDdl
+  val igluClient   = "com.snowplowanalytics" %% "iglu-scala-client"            % V.igluClient
 
   // Testing
   val specs2       = "org.specs2"     %% "specs2-core"       % V.specs2     % Test
