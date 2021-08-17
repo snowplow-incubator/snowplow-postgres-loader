@@ -14,6 +14,8 @@ package com.snowplowanalytics.snowplow.postgres.config
 
 import java.net.URI
 
+import scala.concurrent.duration._
+
 import cats.effect.{IO, ExitCode}
 
 import io.circe.Json
@@ -27,7 +29,7 @@ import com.snowplowanalytics.iglu.client.resolver.registries.Registry.{HttpConne
 import com.snowplowanalytics.iglu.client.validator.CirceValidator
 
 import com.snowplowanalytics.snowplow.postgres.Database
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source, Monitoring}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source, Sink, PathInfo, PathType, Monitoring, BackoffPolicy}
 import com.snowplowanalytics.snowplow.postgres.loader.Main
 
 class LocalSourceSpec extends Database {
@@ -42,18 +44,22 @@ class LocalSourceSpec extends Database {
       val igluClient = Client[IO, Json](Resolver(List(Registry.IgluCentral, registry), None), CirceValidator)
 
       val loaderConfig = LoaderConfig(
-        Source.LocalFS(Source.LocalFS.PathInfo(Path.fromString(path).get, Source.LocalFS.PathType.Absolute)),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "allow",
-          "public"
+        Source.Local(PathInfo(Path.fromString(path).get, PathType.Absolute)),
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "allow",
+            "public"
+          ),
+          LoaderConfig.StreamSink.Noop
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(false))
+        Monitoring(Monitoring.Metrics(false)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
 
       val cli = Cli[IO](loaderConfig, igluClient)

@@ -10,18 +10,11 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.postgres.source
+package com.snowplowanalytics.snowplow.postgres.streaming
 
-import doobie.hikari.HikariTransactor
+import cats.effect.{Resource, Concurrent}
 
-import fs2.{Stream, Pipe}
-
-import com.snowplowanalytics.snowplow.postgres.streaming.SinkPipe
-import com.snowplowanalytics.snowplow.postgres.streaming.data.BadData
-
-final case class Environment[F[_], A](
-  source: Stream[F, A],
-  getPayload: A => Either[BadData, String],
-  checkpointer: Pipe[F, A, Unit],
-  sinkPipe: HikariTransactor[F] => SinkPipe[F]
-)
+object DummyStreamSink {
+  def create[F[_]: Concurrent]:Resource[F, StreamSink[F]] =
+    Resource.pure[F, StreamSink[F]](_ => Concurrent[F].pure(()))
+}

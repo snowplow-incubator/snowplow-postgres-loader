@@ -31,7 +31,7 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.{SchemaList => DdlSchemaL
 import com.snowplowanalytics.snowplow.badrows.FailureDetails
 import com.snowplowanalytics.snowplow.postgres.shredding.schema.fetch
 import com.snowplowanalytics.snowplow.postgres.streaming.IgluErrors
-import com.snowplowanalytics.snowplow.postgres.streaming.sink.Insert
+import com.snowplowanalytics.snowplow.postgres.streaming.Sink.Insert
 
 object ddl {
 

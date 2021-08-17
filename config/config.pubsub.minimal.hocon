@@ -7,11 +7,13 @@
   }
 
   "output" : {
-    "type": "Postgres"
-    "host": "localhost"
-    "database": "snowplow"
-    "username": "postgres"
-    "password": ${POSTGRES_PASSWORD}
-    "schema": "atomic"
+    "good": {
+      "type": "Postgres"
+      "host": "localhost"
+      "database": "snowplow"
+      "username": "postgres"
+      "password": ${POSTGRES_PASSWORD}
+      "schema": "atomic"
+    }
   }
 }

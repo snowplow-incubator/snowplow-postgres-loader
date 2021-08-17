@@ -16,25 +16,56 @@
   }
 
   "output" : {
-    "type": "Postgres"
-    # PostgreSQL host ('localhost' for enabled SSH Tunnel)
-    "host": "localhost"
-    # PostgreSQL database port
-    "port": 5432
-    # PostgreSQL database name
-    "database": "snowplow"
-    # PostgreSQL user to load data
-    "username": "postgres"
-    # PostgreSQL password, either plain text or from an environment variable
-    "password": "mysecretpassword"
-    "password": ${?POSTGRES_PASSWORD}
-    # PostgreSQL database schema
-    "schema": "atomic"
-    # JDBC ssl mode
-    "sslMode": "REQUIRE"
+    # Events that pass validation are written to Postgres.
+    "good": {
+      "type": "Postgres"
+      # PostgreSQL host ('localhost' for enabled SSH Tunnel)
+      "host": "localhost"
+      # PostgreSQL database port
+      "port": 5432
+      # PostgreSQL database name
+      "database": "snowplow"
+      # PostgreSQL user to load data
+      "username": "postgres"
+      # PostgreSQL password, either plain text or from an environment variable
+      "password": "mysecretpassword"
+      "password": ${?POSTGRES_PASSWORD}
+      # PostgreSQL database schema
+      "schema": "atomic"
+      # JDBC ssl mode
+      "sslMode": "REQUIRE"
+    }
+
+    # Events that fail validation are written to specified stream.
+    # If this section is removed from config, bad row output will be disabled.
+    "bad": {
+      # Enable the Pubsub sink as bad row sink
+      "type": "PubSub"
+      # Your GCP project id
+      "projectId": "my-project"
+      # Your GCP PubSub topic id
+      "topicId": "my-topic"
+      # The delay threshold to use for batching
+      # Default is 200 milliseconds
+      "delayThreshold": 200 milliseconds
+      # Max number of items in the batch to collect before emitting
+      # Default is 500
+      "maxBatchSize": 500
+      # Max size of the batch in bytes before emitting
+      # Default is 5MB
+      "maxBatchBytes": 5000000
+      # The number of threads used internally by library to process the callback after message delivery
+      # Default is 1
+      "numCallbackExecutors": 1
+    }
   }
 
   # Kind of data stored in this instance. Either ENRICHED_EVENTS or JSON
   "purpose": "ENRICHED_EVENTS"
 
+  # Minimum and maximum backoff periods
+  "backoffPolicy": {
+    "minBackoff": 100 milliseconds
+    "maxBackoff": 10 seconds
+  }
 }

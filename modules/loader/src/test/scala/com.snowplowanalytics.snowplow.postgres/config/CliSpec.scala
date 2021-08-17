@@ -18,8 +18,8 @@ import scala.concurrent.duration._
 
 import cats.effect.{IO, Clock}
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source, Monitoring}
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{InitPosition, Purpose, Source, Sink}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Monitoring, BackoffPolicy, PathInfo, PathType}
 
 import software.amazon.awssdk.regions.Region
 
@@ -45,17 +45,21 @@ class CliSpec extends Specification {
           Source.Kinesis.Retrieval.FanOut,
           Source.Kinesis.CheckpointSettings(1000, 10.seconds)
         ),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Noop
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -77,17 +81,27 @@ class CliSpec extends Specification {
           Source.Kinesis.Retrieval.FanOut,
           Source.Kinesis.CheckpointSettings(1000, 10.seconds)
         ),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Kinesis(
+            "bad-rows",
+            Region.EU_CENTRAL_1,
+            200.milliseconds,
+            500L,
+            5000000L
+          )
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -106,17 +120,21 @@ class CliSpec extends Specification {
           "my-subscription",
           Source.PubSub.CheckpointSettings(100)
         ),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Noop
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -135,17 +153,28 @@ class CliSpec extends Specification {
           "my-subscription",
           Source.PubSub.CheckpointSettings(100)
         ),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.PubSub(
+            "my-project",
+            "my-topic",
+            200.milliseconds,
+            500L,
+            5000000L,
+            1
+          ),
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -159,18 +188,22 @@ class CliSpec extends Specification {
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
       val expected = LoaderConfig(
-        Source.LocalFS(PathInfo(Path.fromString("/tmp/example").get, Source.LocalFS.PathType.Absolute)),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Source.Local(PathInfo(Path.fromString("/tmp/example").get, PathType.Absolute)),
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Noop
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -184,18 +217,22 @@ class CliSpec extends Specification {
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
       val expected = LoaderConfig(
-        Source.LocalFS(PathInfo(Path.fromString("./tmp/example").get, Source.LocalFS.PathType.Relative)),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Source.Local(PathInfo(Path.fromString("./tmp/example").get, PathType.Relative)),
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Local(PathInfo(Path.fromString("./tmp/bad").get, PathType.Relative))
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {
@@ -209,18 +246,22 @@ class CliSpec extends Specification {
       val argv = List("--config", config.toString, "--resolver", resolver.toString)
 
       val expected = LoaderConfig(
-        Source.LocalFS(PathInfo(Path.fromString("tmp/example").get, Source.LocalFS.PathType.Relative)),
-        DBConfig(
-          "localhost",
-          5432,
-          "snowplow",
-          "postgres",
-          "mysecretpassword",
-          "REQUIRE",
-          "atomic"
+        Source.Local(PathInfo(Path.fromString("tmp/example").get, PathType.Relative)),
+        Sink(
+          DBConfig(
+            "localhost",
+            5432,
+            "snowplow",
+            "postgres",
+            "mysecretpassword",
+            "REQUIRE",
+            "atomic"
+          ),
+          LoaderConfig.StreamSink.Noop
         ),
         Purpose.Enriched,
-        Monitoring(Monitoring.Metrics(true))
+        Monitoring(Monitoring.Metrics(true)),
+        BackoffPolicy(100.milliseconds, 10.seconds)
       )
       val result = Cli.parse[IO](argv).value.unsafeRunSync()
       result must beRight.like {

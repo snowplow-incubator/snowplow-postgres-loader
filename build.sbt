@@ -37,6 +37,7 @@ lazy val common = project
       Dependencies.doobieHikari,
       Dependencies.log4s,
       Dependencies.logback,
+      Dependencies.catsRetry,
       Dependencies.analyticsSdk,
       Dependencies.badRows,
       Dependencies.schemaDdl,

@@ -10,7 +10,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.postgres.source
+package com.snowplowanalytics.snowplow.postgres.env.local
 
 import cats.implicits._
 import cats.effect.{ContextShift, Blocker, Resource, Timer, ConcurrentEffect}
@@ -20,17 +20,19 @@ import fs2.{Pipe, Stream}
 import blobstore.fs.FileStore
 import blobstore.Store
 
-import com.snowplowanalytics.snowplow.postgres.streaming.SinkPipe
+import com.snowplowanalytics.snowplow.badrows.BadRow
+import com.snowplowanalytics.snowplow.postgres.streaming.{SinkPipe, StreamSink}
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Source}
-import com.snowplowanalytics.snowplow.postgres.streaming.data.BadData
+import com.snowplowanalytics.snowplow.postgres.env.Environment
 
 object LocalEnv {
 
-  def create[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.LocalFS): Resource[F, Environment[F, String]] = {
+  def create[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.Local, badSink: StreamSink[F]): Resource[F, Environment[F, String]] = {
     Resource.eval {
       ConcurrentEffect[F].delay(
         Environment[F, String](
           getSource(blocker, config),
+          badSink,
           getPayload,
           checkpointer,
           SinkPipe.UnorderedPipe.forTransactor[F]
@@ -39,7 +41,7 @@ object LocalEnv {
     }
   }
 
-  private def getSource[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.LocalFS): Stream[F, String] = {
+  private def getSource[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.Local): Stream[F, String] = {
     val store: Store[F] = FileStore[F](config.path.pathType.fsroot, blocker)
     store.list(config.path.value, recursive = true)
       .flatMap { p =>
@@ -50,7 +52,7 @@ object LocalEnv {
       }
   }
 
-  private def getPayload[F[_]](record: String): Either[BadData, String] = record.asRight
+  private def getPayload[F[_]](record: String): Either[BadRow, String] = record.asRight
 
   private def checkpointer[F[_]]: Pipe[F, String, Unit] = _.map(_ => ())
 }

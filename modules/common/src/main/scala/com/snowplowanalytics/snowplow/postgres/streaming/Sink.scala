@@ -12,7 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
-import cats.data.EitherT
+import java.nio.charset.StandardCharsets
+
+import cats.data.{EitherT, NonEmptyList}
 import cats.implicits._
 
 import cats.effect.{Clock, ContextShift, Sync}
@@ -21,19 +23,20 @@ import doobie._
 import doobie.implicits._
 
 import io.circe.Json
+import io.circe.syntax._
 import org.log4s.getLogger
 
 import com.snowplowanalytics.iglu.core.circe.implicits._
 
 import com.snowplowanalytics.iglu.client.Client
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Processor, Failure}
 import com.snowplowanalytics.snowplow.postgres.api.{DB, State}
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, transform}
-import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
+import com.snowplowanalytics.snowplow.postgres.streaming.data.Data
 import com.snowplowanalytics.snowplow.postgres.logging.Slf4jLogHandler
 
-object sink {
+object Sink {
 
   private lazy val logger = getLogger
   private lazy val logHandler = Slf4jLogHandler(logger)
@@ -43,10 +46,11 @@ object sink {
   def sinkResult[F[_]: Sync: ContextShift: Clock: DB](
     state: State[F],
     client: Client[F, Json],
-    processor: Processor
-  )(result: Either[BadData, Data]): F[Unit] =
-    result.fold(sinkBad[F], sinkGood[F](state, client, processor)(_).flatMap {
-      case Left(badData) => sinkBad[F](badData)
+    processor: Processor,
+    badSink: StreamSink[F]
+  )(result: Either[BadRow, Data]): F[Unit] =
+    result.fold(bad[F](_, badSink), good[F](state, client, processor)(_).flatMap {
+      case Left(badRow) => bad[F](badRow, badSink)
       case Right(_) => Sync[F].unit
     })
 
@@ -58,34 +62,39 @@ object sink {
     * @param client Iglu Client
     * @param processor The actor processing these events
     */
-  def sinkGood[F[_]: Sync: Clock: DB](state: State[F], client: Client[F, Json], processor: Processor)(payload: Data): F[Either[BadData, Unit]] = {
+  def good[F[_]: Sync: Clock: DB](state: State[F], client: Client[F, Json], processor: Processor)(payload: Data): F[Either[BadRow, Unit]] = {
     val result = for {
+      now <- EitherT.liftF(TimeUtils.now)
       entities <- payload match {
         case Data.Snowplow(event) =>
-          transform.shredEvent[F](client, processor, event).leftMap(bad => BadData.BadEnriched(bad))
+          transform.shredEvent[F](client, processor, event)
         case Data.SelfDescribing(json) =>
-          transform.shredJson(client)(json).leftMap(errors => BadData.BadJson(json.normalize.noSpaces, errors.toString))
+          transform.shredJson(client)(json).leftMap { errors =>
+            val failure = Failure.GenericFailure(
+              now,
+              errors.map(_.asJson.noSpaces)
+            )
+            BadRow.GenericError(processor, failure, Payload.RawPayload(json.normalize.noSpaces)).asInstanceOf[BadRow]
+          }
       }
-      insert <- EitherT(DB.process(entities, state).attempt).leftMap {
-        case error =>
+      insert <- EitherT(DB.process(entities, state).attempt).leftMap { error =>
           payload match {
             case Data.Snowplow(event) =>
-              val badRow = BadRow.LoaderRuntimeError(processor, error.getMessage, Payload.LoaderPayload(event))
-              BadData.BadEnriched(badRow)
+              BadRow.LoaderRuntimeError(processor, error.getMessage, Payload.LoaderPayload(event)).asInstanceOf[BadRow]
             case Data.SelfDescribing(json) =>
-              BadData.BadJson(json.normalize.noSpaces, s"Cannot insert: ${error.getMessage}")
+              val failure = Failure.GenericFailure(
+                now,
+                NonEmptyList.of(s"Cannot insert: ${error.getMessage}")
+              )
+              BadRow.GenericError(processor, failure, Payload.RawPayload(json.normalize.noSpaces)).asInstanceOf[BadRow]
           }
       }
     } yield insert
     result.value
   }
-  
-  def sinkBad[F[_]: Sync](badData: BadData): F[Unit] =
-    badData match {
-      case BadData.BadEnriched(row) => Sync[F].delay(logger.warn(s"Error for enriched event: ${row.compact}"))
-      case BadData.BadJson(payload, error) => Sync[F].delay(logger.warn(s"Cannot parse $payload. $error"))
-    }
 
+  def bad[F[_]: Sync](badRow: BadRow, badSink: StreamSink[F]): F[Unit] =
+    badSink(badRow.compact.getBytes(StandardCharsets.UTF_8))
   /**
     * Build an `INSERT` action for a single entity
     * Multiple inserts later can be combined into a transaction

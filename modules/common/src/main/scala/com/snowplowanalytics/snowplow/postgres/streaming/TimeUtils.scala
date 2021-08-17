@@ -12,25 +12,14 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
-import com.snowplowanalytics.iglu.core.SelfDescribingData
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
-import io.circe.Json
+import cats.implicits._
+import cats.Functor
+import cats.effect.Clock
 
-import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-
-object data {
-
-  /** Kind of data flowing through the Loader */
-  sealed trait Data extends Product with Serializable {
-    def snowplow: Boolean =
-      this match {
-        case _: Data.Snowplow       => true
-        case _: Data.SelfDescribing => false
-      }
-  }
-
-  object Data {
-    case class Snowplow(data: Event) extends Data
-    case class SelfDescribing(data: SelfDescribingData[Json]) extends Data
-  }
+object TimeUtils {
+  def now[F[_]: Clock: Functor]: F[Instant] =
+    Clock[F].realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
 }

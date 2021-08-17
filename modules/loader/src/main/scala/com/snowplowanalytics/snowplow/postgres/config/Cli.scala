@@ -16,6 +16,8 @@ import java.nio.file.{InvalidPathException, Paths}
 import java.util.Base64
 import java.nio.file.Files
 
+import scala.concurrent.ExecutionContext
+
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
 
@@ -36,8 +38,9 @@ import com.snowplowanalytics.snowplow.badrows.Processor
 import com.monovore.decline._
 
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.Local
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.PathInfo
+import com.snowplowanalytics.snowplow.postgres.env.Environment
 
 case class Cli[F[_]](config: LoaderConfig, iglu: Client[F, Json])
 
@@ -52,18 +55,25 @@ object Cli {
       case Right(rawConfig) => fromRawConfig(rawConfig)
     }
 
-  def configPreCheck[F[_]: Sync](cli: Cli[F]): EitherT[F, String, Cli[F]] =
-    cli.config.input match {
-      case LocalFS(pathInfo) =>
+  def configPreCheck[F[_]: Async](cli: Cli[F])(implicit ec: ExecutionContext): EitherT[F, String, Cli[F]] = {
+    val inputCheck = cli.config.input match {
+      case Local(pathInfo) =>
         fileExists(pathInfo)
           .attemptT
           .leftMap(_.toString)
           .ensure(s"Local source path [${pathInfo.allPath}] does not exist")(identity)
-          .as(cli)
-      case _ => EitherT.pure(cli)
+          .void
+      case _ => EitherT.pure[F, String](())
     }
+    val badRowStreamExists = Environment.streamSinkExists(cli.config.output.bad)
+      .attemptT
+      .leftMap(_.toString)
+      .ensure("Given bad row stream does not exist")(identity)
+      .void
+    (inputCheck *> badRowStreamExists).as(cli)
+  }
 
-  private def fileExists[F[_]: Sync](pathInfo: PathInfo): F[Boolean] =
+  private def fileExists[F[_]: Async](pathInfo: PathInfo): F[Boolean] =
     Sync[F].delay(Files.exists(pathInfo.allPath))
 
   private def fromRawConfig[F[_]: Async: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =

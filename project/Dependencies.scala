@@ -33,6 +33,7 @@ object Dependencies {
     val log4s        = "1.10.0"
     val config       = "1.4.1"
     val fs2BlobCore  = "0.7.3"
+    val catsRetry    = "2.1.1"
 
     val analyticsSdk = "2.1.0"
     val badRows      = "2.1.1"
@@ -71,6 +72,7 @@ object Dependencies {
   val doobieHikari  = "org.tpolecat"             %% "doobie-hikari"          % V.doobie
   val log4s         = "org.log4s"                %% "log4s"                  % V.log4s
   val fs2BlobCore   = "com.github.fs2-blobstore" %% "core"                   % V.fs2BlobCore
+  val catsRetry     = "com.github.cb372"         %% "cats-retry"             % V.catsRetry
 
   // Scala first-party
   val analyticsSdk = "com.snowplowanalytics" %% "snowplow-scala-analytics-sdk" % V.analyticsSdk

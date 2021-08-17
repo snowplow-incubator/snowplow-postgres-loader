@@ -20,6 +20,8 @@ package object streaming {
 
   type IgluErrors = NonEmptyList[FailureDetails.LoaderIgluError]
 
+  type StreamSink[F[_]] = Array[Byte] => F[Unit]
+
   object IgluErrors {
     def of(error: FailureDetails.LoaderIgluError): NonEmptyList[FailureDetails.LoaderIgluError] =
       NonEmptyList.of(error)

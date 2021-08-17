@@ -28,7 +28,7 @@ import com.snowplowanalytics.iglu.schemaddl.migrations.SchemaList
 
 import com.snowplowanalytics.snowplow.postgres.shredding.{Entity, Shredded, schema}
 import com.snowplowanalytics.snowplow.postgres.storage.ddl
-import com.snowplowanalytics.snowplow.postgres.streaming.sink
+import com.snowplowanalytics.snowplow.postgres.streaming.Sink
 
 trait DB[F[_]] {
   def insert(event: List[Entity]): F[Unit]
@@ -88,7 +88,7 @@ object DB {
   def interpreter[F[_]: Sync: Clock](resolver: Resolver[F], xa: Transactor[F], schemaName: String): DB[F] =
     new DB[F] {
       def insert(event: List[Entity]): F[Unit] =
-        event.traverse_(sink.insertStatement(schemaName, _)).transact(xa)
+        event.traverse_(Sink.insertStatement(schemaName, _)).transact(xa)
 
       def alter(schemaKey: SchemaKey): F[Unit] = {
         val result = ddl.alterTable[F](resolver, schemaName, schemaKey)

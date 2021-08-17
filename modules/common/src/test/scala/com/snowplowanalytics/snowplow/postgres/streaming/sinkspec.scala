@@ -49,7 +49,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
+        _ <- stream.through(orderedPipe(Sink.good(state, igluClient, processor))).compile.drain.action
         eventIds <- query.action
         uaParserCtxs <- count("com_snowplowanalytics_snowplow_ua_parser_context_1").action
       } yield (eventIds, uaParserCtxs)
@@ -71,7 +71,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
+        _ <- stream.through(orderedPipe(Sink.good(state, igluClient, processor))).compile.drain.action
         eventIds <- query.action
         rows <- count("com_getvero_bounced_1").action
       } yield (eventIds, rows)
@@ -110,7 +110,7 @@ class sinkspec extends Database {
 
       val action = for {
         state <- State.init[IO](List(), igluClient.resolver)
-        _ <- stream.through(orderedPipe(sink.sinkGood(state, igluClient, processor))).compile.drain.action
+        _ <- stream.through(orderedPipe(Sink.good(state, igluClient, processor))).compile.drain.action
         rows <- count("me_chuwy_pg_test_1").action
         table <- describeTable("me_chuwy_pg_test_1").action
       } yield (rows, table)

@@ -10,13 +10,15 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the Apache License Version 2.0 for the specific language governing permissions and limitations there under.
  */
-package com.snowplowanalytics.snowplow.postgres.source
+package com.snowplowanalytics.snowplow.postgres.env.kinesis
 
 import java.util.{Base64, UUID}
 import java.net.InetAddress
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 
 import cats.implicits._
+import cats.data.NonEmptyList
 
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
@@ -34,47 +36,60 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Failure}
 import com.snowplowanalytics.snowplow.analytics.scalasdk.ParsingError.NotTSV
 
 import com.snowplowanalytics.snowplow.postgres.config.Cli
-import com.snowplowanalytics.snowplow.postgres.streaming.SinkPipe
-import com.snowplowanalytics.snowplow.postgres.streaming.data.BadData
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Monitoring, Source, Purpose}
+import com.snowplowanalytics.snowplow.postgres.streaming.{SinkPipe, TimeUtils, StreamSink}
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Source, Purpose, Monitoring}
+import com.snowplowanalytics.snowplow.postgres.env.Environment
+import com.snowplowanalytics.snowplow.postgres.env.kinesis.KinesisSink.mkKinesisClient
 
 object KinesisEnv {
 
-  def create[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: Source.Kinesis, metrics: Monitoring.Metrics, purpose: Purpose): Resource[F, Environment[F, CommittableRecord]] =
+  def create[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker,
+                                                          config: Source.Kinesis,
+                                                          badSink: StreamSink[F],
+                                                          metrics: Monitoring.Metrics,
+                                                          purpose: Purpose): Resource[F, Environment[F, CommittableRecord]] =
     for {
-      kinesisClient <- makeKinesisClient[F](config.region)
-      dynamoClient <- makeDynamoDbClient[F](config.region)
-      cloudWatchClient <- makeCloudWatchClient[F](config.region)
+      kinesisClient <- mkKinesisClient[F](config.region)
+      dynamoClient <- mkDynamoDbClient[F](config.region)
+      cloudWatchClient <- mkCloudWatchClient[F](config.region)
       kinesis = Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, config, metrics, _))
+      now <- Resource.eval(TimeUtils.now[F])
     } yield Environment(
         getSource(kinesis),
-        getPayload(purpose),
+        badSink,
+        getPayload(purpose, now),
         checkpointer(kinesis, config.checkpointSettings),
         SinkPipe.OrderedPipe.forTransactor[F]
       )
 
   private def getSource[F[_]](kinesis: Kinesis[F]): Stream[F, CommittableRecord] =
+    // These arguments are used to create KinesisConsumerSettings later on.
+    // However, only bufferSize field of created KinesisConsumerSettings object is used later on
+    // therefore given stream name and app name are not used in anywhere.
     kinesis.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
 
-  private def getPayload(purpose: Purpose)(record: CommittableRecord): Either[BadData, String] =
+  private def getPayload(purpose: Purpose, now: Instant)(record: CommittableRecord): Either[BadRow, String] =
     Either.catchNonFatal(StandardCharsets.UTF_8.decode(record.record.data()).toString)
       .leftMap { _ =>
         val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
         purpose match {
           case Purpose.Enriched =>
-            val badRow = BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
-            BadData.BadEnriched(badRow)
+            BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
           case Purpose.SelfDescribing =>
-            BadData.BadJson(payload, "\"Cannot deserialize self-describing JSON from record\"")
+            val failure = Failure.GenericFailure(
+              now,
+              NonEmptyList.of("\"Cannot deserialize self-describing JSON from record\"")
+            )
+            BadRow.GenericError(Cli.processor, failure, Payload.RawPayload(payload))
         }
       }
 
   private def checkpointer[F[_]](kinesis: Kinesis[F], checkpointSettings: Source.Kinesis.CheckpointSettings): Pipe[F, CommittableRecord, Unit] =
-    kinesis.checkpointRecords(checkpointSettings.unwrap).andThen(_.as(()))
+    kinesis.checkpointRecords(checkpointSettings.unwrap).andThen(_.void)
 
   private def scheduler[F[_]: Sync](kinesisClient: KinesisAsyncClient,
                             dynamoDbClient: DynamoDbAsyncClient,
@@ -122,16 +137,7 @@ object KinesisEnv {
       )
     }
 
-  private def makeKinesisClient[F[_]: Sync](region: Region): Resource[F, KinesisAsyncClient] =
-    Resource.fromAutoCloseable {
-      Sync[F].delay {
-        KinesisAsyncClient.builder()
-          .region(region)
-          .build
-      }
-    }
-
-  private def makeDynamoDbClient[F[_]: Sync](region: Region): Resource[F, DynamoDbAsyncClient] =
+  private def mkDynamoDbClient[F[_]: Sync](region: Region): Resource[F, DynamoDbAsyncClient] =
     Resource.fromAutoCloseable {
       Sync[F].delay {
         DynamoDbAsyncClient.builder()
@@ -140,7 +146,7 @@ object KinesisEnv {
       }
     }
 
-  private def makeCloudWatchClient[F[_]: Sync](region: Region): Resource[F, CloudWatchAsyncClient] =
+  private def mkCloudWatchClient[F[_]: Sync](region: Region): Resource[F, CloudWatchAsyncClient] =
     Resource.fromAutoCloseable {
       Sync[F].delay {
         CloudWatchAsyncClient.builder()

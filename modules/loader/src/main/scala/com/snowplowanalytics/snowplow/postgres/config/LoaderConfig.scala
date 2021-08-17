@@ -16,14 +16,16 @@ import java.util.Date
 import java.time.Instant
 import java.nio.file.{Path => JPath}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 import cats.syntax.either._
 
+import cats.effect.Sync
+
 import fs2.aws.kinesis.KinesisCheckpointSettings
 
-import io.circe.{Decoder}
+import io.circe.Decoder
 import io.circe.generic.extras.semiauto.deriveConfiguredDecoder
 import io.circe.generic.extras.Configuration
 import io.circe.config.syntax._
@@ -33,13 +35,16 @@ import software.amazon.kinesis.common.{InitialPositionInStream, InitialPositionI
 
 import blobstore.Path
 
-import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Source.LocalFS.PathInfo
-import LoaderConfig.{Purpose, Source}
+import retry.RetryPolicy
+import retry.RetryPolicies._
+
+import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.{Purpose, Source, Sink, Monitoring, BackoffPolicy}
 
 case class LoaderConfig(input: Source,
-                        output: DBConfig,
+                        output: Sink,
                         purpose: Purpose,
-                        monitoring: LoaderConfig.Monitoring
+                        monitoring: Monitoring,
+                        backoffPolicy: BackoffPolicy
 )
 
 object LoaderConfig {
@@ -53,6 +58,13 @@ object LoaderConfig {
       if (allRegions.contains(s)) Region.of(s).asRight
       else s"Region $s is unknown, choose from [${allRegions.mkString(", ")}]".asLeft
     }
+
+  case class Sink(good: DBConfig, bad: StreamSink)
+
+  object Sink {
+    implicit def ioCirceSinkConfigDecoder: Decoder[Sink] =
+      deriveConfiguredDecoder[Sink]
+  }
 
   sealed trait InitPosition {
 
@@ -106,6 +118,60 @@ object LoaderConfig {
       }
   }
 
+  /**
+    * Contains information about the given path
+    * @param value Path which contains events
+    * @param pathType Specifies whether given path is absolute or relative
+    */
+  case class PathInfo(value: Path, pathType: PathType) {
+    /**
+      * Combines root of the path and path itself.
+      * Path root is determined according to the path type.
+      */
+    def allPath: JPath = JPath.of(pathType.fsroot.toString, "/", value.toString)
+  }
+
+  object PathInfo {
+    implicit val pathDecoder: Decoder[PathInfo] =
+      Decoder.decodeString.emap { pathStr =>
+        Path.fromString(pathStr).toRight(s"Invalid path: $pathStr")
+          .map(PathInfo(_, PathType.determineType(pathStr)))
+      }
+  }
+
+  /**
+    * Represents type of the path
+    */
+  sealed trait PathType {
+    /**
+      * Gives file system root according to the path type
+      */
+    def fsroot: JPath =
+      this match {
+        case PathType.Absolute => JPath.of("/")
+        case PathType.Relative => JPath.of("./")
+      }
+  }
+
+  object PathType {
+    /**
+      * If path starts from root directory, it's type is absolute
+      */
+    case object Absolute extends PathType
+
+    /**
+      * If path does not start from root directory, it's type is relative
+      */
+    case object Relative extends PathType
+
+    /**
+      * Determine type of the path according to where it starts
+      */
+    def determineType(path: String): PathType =
+      if (path.startsWith("/")) PathType.Absolute
+      else PathType.Relative
+  }
+
   sealed trait Source extends Product with Serializable
   object Source {
 
@@ -147,62 +213,7 @@ object LoaderConfig {
       }
     }
 
-    case class LocalFS(path: PathInfo) extends Source
-    object LocalFS {
-      /**
-        * Contains information about the given path
-        * @param value Path which contains events
-        * @param pathType Specifies whether given path is absolute or relative
-        */
-      case class PathInfo(value: Path, pathType: PathType) {
-        /**
-          * Combines root of the path and path itself.
-          * Path root is determined according to the path type.
-          */
-        def allPath: JPath = JPath.of(pathType.fsroot.toString, "/", value.toString)
-      }
-
-      object PathInfo {
-        implicit val pathDecoder: Decoder[PathInfo] =
-          Decoder.decodeString.emap { pathStr =>
-            Path.fromString(pathStr).toRight(s"Invalid path: $pathStr")
-              .map(PathInfo(_, PathType.determineType(pathStr)))
-          }
-      }
-
-      /**
-        * Represents type of the path
-        */
-      sealed trait PathType {
-        /**
-          * Gives file system root according to the path type
-          */
-        def fsroot: JPath =
-          this match {
-            case PathType.Absolute => JPath.of("/")
-            case PathType.Relative => JPath.of("./")
-          }
-      }
-
-      object PathType {
-        /**
-          * If path starts from root directory, it's type is absolute
-          */
-        case object Absolute extends PathType
-
-        /**
-          * If path does not start from root directory, it's type is relative
-          */
-        case object Relative extends PathType
-
-        /**
-          * Determine type of the path according to where it starts
-          */
-        def determineType(path: String): PathType =
-          if (path.startsWith("/")) LocalFS.PathType.Absolute
-          else LocalFS.PathType.Relative
-      }
-    }
+    case class Local(path: PathInfo) extends Source
 
     case class PubSub(projectId: String, subscriptionId: String, checkpointSettings: PubSub.CheckpointSettings) extends Source
 
@@ -219,6 +230,31 @@ object LoaderConfig {
       deriveConfiguredDecoder[Source]
   }
 
+
+  sealed trait StreamSink extends Product with Serializable
+  object StreamSink {
+
+    case object Noop extends StreamSink
+
+    case class Local(path: PathInfo) extends StreamSink
+
+    case class Kinesis(streamName: String,
+                       region: Region,
+                       delayThreshold: FiniteDuration,
+                       maxBatchSize: Long,
+                       maxBatchBytes: Long) extends StreamSink
+
+    case class PubSub(projectId: String,
+                      topicId: String,
+                      delayThreshold: FiniteDuration,
+                      maxBatchSize: Long,
+                      maxBatchBytes: Long,
+                      numCallbackExecutors: Int) extends StreamSink
+
+    implicit def sinkConfigDecoder: Decoder[StreamSink] =
+      deriveConfiguredDecoder[StreamSink]
+  }
+
   case class Monitoring(metrics: Monitoring.Metrics)
 
   object Monitoring {
@@ -229,6 +265,15 @@ object LoaderConfig {
 
     implicit def monitoringDecoder: Decoder[Monitoring] =
       deriveConfiguredDecoder[Monitoring]
+  }
+
+  case class BackoffPolicy(minBackoff: FiniteDuration, maxBackoff: FiniteDuration) {
+    def retryPolicy[F[_]: Sync]: RetryPolicy[F] = capDelay[F](maxBackoff, exponentialBackoff[F](minBackoff))
+  }
+
+  object BackoffPolicy {
+    implicit def ioCirceBackoffPolicyDecoder: Decoder[BackoffPolicy] =
+      deriveConfiguredDecoder[BackoffPolicy]
   }
 
   implicit def ioCirceConfigDecoder: Decoder[LoaderConfig] =

@@ -12,7 +12,10 @@
  */
 package com.snowplowanalytics.snowplow.postgres.utils
 
+import java.time.Instant
+
 import cats.implicits._
+import cats.data.NonEmptyList
 
 import io.circe.Json
 import io.circe.parser.{parse => parseCirce}
@@ -20,9 +23,9 @@ import io.circe.parser.{parse => parseCirce}
 import com.snowplowanalytics.iglu.core.SelfDescribingData
 import com.snowplowanalytics.iglu.core.circe.implicits._
 import com.snowplowanalytics.snowplow.analytics.scalasdk.Event
-import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload}
+import com.snowplowanalytics.snowplow.badrows.{BadRow, Payload, Failure}
 
-import com.snowplowanalytics.snowplow.postgres.streaming.data.{BadData, Data}
+import com.snowplowanalytics.snowplow.postgres.streaming.data.Data
 import com.snowplowanalytics.snowplow.postgres.config.Cli
 import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 
@@ -32,23 +35,28 @@ object ParserUtils {
     * Parse given item into a valid Loader's record, either enriched event or self-describing JSON,
     * depending on purpose of the Loader
     */
-  def parseItem(kind: Purpose, item: String): Either[BadData, Data] =
+  def parseItem(kind: Purpose, item: String, now: Instant): Either[BadRow, Data] =
     kind match {
       case Purpose.Enriched =>
         parseEventString(item).map(Data.Snowplow.apply)
       case Purpose.SelfDescribing =>
-        parseJson(item).map(Data.SelfDescribing.apply)
+        parseJson(item, now).map(Data.SelfDescribing.apply)
     }
 
-  private def parseEventString(s: String): Either[BadData, Event] =
+  private def parseEventString(s: String): Either[BadRow, Event] =
     Event.parse(s).toEither.leftMap { error =>
-      val badRow = BadRow.LoaderParsingError(Cli.processor, error, Payload.RawPayload(s))
-      BadData.BadEnriched(badRow)
+      BadRow.LoaderParsingError(Cli.processor, error, Payload.RawPayload(s))
     }
 
-  private def parseJson(s: String): Either[BadData, SelfDescribingData[Json]] =
+  private def parseJson(s: String, now: Instant): Either[BadRow, SelfDescribingData[Json]] =
     parseCirce(s)
       .leftMap(_.show)
       .flatMap(json => SelfDescribingData.parse[Json](json).leftMap(_.message(json.noSpaces)))
-      .leftMap(error => BadData.BadJson(s, error))
+      .leftMap { error =>
+        val failure = Failure.GenericFailure(
+          now,
+          NonEmptyList.of(error)
+        )
+        BadRow.GenericError(Cli.processor, failure, Payload.RawPayload(s))
+      }
 }
