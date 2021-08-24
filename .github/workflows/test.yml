@@ -36,8 +36,10 @@ jobs:
         distribution: adopt
     - name: Prepare test environment
       run: $GITHUB_WORKSPACE/.github/start_environment.sh
-    - name: Run tests
-      run: sbt clean coverage test
+    - name: Run common module tests
+      run: sbt "project common" clean coverage test
+    - name: Run loader module tests
+      run: sbt "project loader" clean coverage test
     - name: Aggregate coverage data
       if: ${{ always() }}
       run: sbt coverageAggregate
