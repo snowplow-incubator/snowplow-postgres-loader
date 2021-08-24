@@ -34,6 +34,9 @@
       "schema": "atomic"
       # JDBC ssl mode
       "sslMode": "REQUIRE"
+      # Maximum number of connections database pool is allowed to reach
+      # Default is 10
+      "maxConnections": 10
     }
 
     # Events that fail validation are written to specified stream.

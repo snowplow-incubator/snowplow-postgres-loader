@@ -53,7 +53,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -89,7 +90,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Kinesis(
             "bad-rows",
@@ -128,7 +130,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -161,7 +164,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.PubSub(
             "my-project",
@@ -197,7 +201,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -226,7 +231,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Local(PathInfo(Path.fromString("./tmp/bad").get, PathType.Relative))
         ),
@@ -255,7 +261,8 @@ class CliSpec extends Specification {
             "postgres",
             "mysecretpassword",
             "REQUIRE",
-            "atomic"
+            "atomic",
+            Some(10)
           ),
           LoaderConfig.StreamSink.Noop
         ),
