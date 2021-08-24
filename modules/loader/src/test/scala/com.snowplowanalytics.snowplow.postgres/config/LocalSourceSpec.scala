@@ -53,7 +53,8 @@ class LocalSourceSpec extends Database {
             "postgres",
             "mysecretpassword",
             "allow",
-            "public"
+            "public",
+            None
           ),
           LoaderConfig.StreamSink.Noop
         ),
