@@ -1,3 +1,21 @@
+Version 0.3.0 (2021-08-27)
+--------------------------
+Use a local directory as an event source (#42)
+Pass stream name and application name to fanout config object (#44)
+Improve checkpointing of kinesis records (#39)
+Bump sbt to 1.5.5 (#46)
+Bump postgresql to 42.2.23 (#47)
+Bump logback to 1.2.5 (#48)
+Bump decline to 2.1.0 (#49)
+Bump cats-effect to 2.5.3 (#50)
+Bump fs2 to 2.5.9 (#51)
+Bump snowplow-badrows to 2.1.1 (#52)
+Bump schema-ddl to 0.14.1 (#53)
+Send bad rows to separate stream (#54)
+Make database max pool size configurable (#56)
+Prepare schema definition to work with pii pseudoanonymization (#45)
+Run tests of different modules seperately in CI/CD (#58)
+
 Version 0.2.0 (2021-07-08)
 --------------------------
 Improve configuration defaults and examples (#41)
