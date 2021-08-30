@@ -54,7 +54,8 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
-            Some(10)
+            10,
+            None
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -91,6 +92,7 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
+            10,
             Some(10)
           ),
           LoaderConfig.StreamSink.Kinesis(
@@ -131,7 +133,8 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
-            Some(10)
+            10,
+            None
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -165,6 +168,7 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
+            10,
             Some(10)
           ),
           LoaderConfig.StreamSink.PubSub(
@@ -202,7 +206,8 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
-            Some(10)
+            10,
+            None
           ),
           LoaderConfig.StreamSink.Noop
         ),
@@ -232,6 +237,7 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
+            10,
             Some(10)
           ),
           LoaderConfig.StreamSink.Local(PathInfo(Path.fromString("./tmp/bad").get, PathType.Relative))
@@ -262,7 +268,8 @@ class CliSpec extends Specification {
             "mysecretpassword",
             "REQUIRE",
             "atomic",
-            Some(10)
+            10,
+            None
           ),
           LoaderConfig.StreamSink.Noop
         ),

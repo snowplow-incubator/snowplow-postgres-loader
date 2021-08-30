@@ -54,6 +54,7 @@ class LocalSourceSpec extends Database {
             "mysecretpassword",
             "allow",
             "public",
+            10,
             None
           ),
           LoaderConfig.StreamSink.Noop
