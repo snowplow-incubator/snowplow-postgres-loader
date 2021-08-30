@@ -38,7 +38,7 @@ object resources {
   def initialize[F[_]: Concurrent: Clock: ContextShift](postgres: DBConfig, iglu: Client[F, Json]) =
     for {
       blocker <- Blocker[F]
-      xa <- resources.getTransactor[F](DBConfig.hikariConfig(postgres), blocker)
+      xa <- resources.getTransactor[F](DBConfig.hikariConfig(postgres), blocker, postgres.threadPoolSize)
       state <- Resource.eval(initializeState(postgres.schema, iglu, xa))
     } yield (blocker, xa, state)
 
@@ -58,14 +58,8 @@ object resources {
     } yield state
 
   /** Get a HikariCP transactor */
-  def getTransactor[F[_]: Async: ContextShift](config: HikariConfig, be: Blocker): Resource[F, HikariTransactor[F]] = {
-    val threadPoolSize = {
-      // This could be made configurable, but these are sensible defaults and unlikely to be critical for tuning throughput.
-      // Exceeding availableProcessors could lead to unnecessary context switching.
-      // Exceeding the connection pool size is unnecessary, because that is limit of the app's parallelism.
-      val maxPoolSize = if (config.getMaximumPoolSize > 0) config.getMaximumPoolSize else 10
-      Math.min(maxPoolSize, Runtime.getRuntime.availableProcessors)
-    }
+  def getTransactor[F[_]: Async: ContextShift](config: HikariConfig, be: Blocker, threadPoolSizeOpt: Option[Int] = None): Resource[F, HikariTransactor[F]] = {
+    val threadPoolSize = threadPoolSizeOpt.getOrElse(config.getMaximumPoolSize)
     logger.debug(s"Using thread pool of size $threadPoolSize for Hikari transactor")
 
     for {

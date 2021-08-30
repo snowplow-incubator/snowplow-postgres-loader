@@ -37,6 +37,9 @@
       # Maximum number of connections database pool is allowed to reach
       # Default is 10
       "maxConnections": 10
+      # Size of the thread pool for blocking database operations
+      # Default is value of "maxConnections"
+      "threadPoolSize": 10
     }
 
     # Events that fail validation are written to specified stream.

@@ -24,7 +24,8 @@ case class DBConfig(host: String,
                     password: String, // TODO: can be EC2 store
                     sslMode: String,
                     schema: String,
-                    maxConnections: Option[Int]
+                    maxConnections: Int,
+                    threadPoolSize: Option[Int]
 ) {
   def getJdbc: JdbcUri =
     JdbcUri(host, port, database, sslMode.toLowerCase().replace('_', '-'))
@@ -46,7 +47,7 @@ object DBConfig {
     config.setJdbcUrl(dbConfig.getJdbc.toString)
     config.setUsername(dbConfig.username)
     config.setPassword(dbConfig.password)
-    dbConfig.maxConnections.foreach(config.setMaximumPoolSize)
+    config.setMaximumPoolSize(dbConfig.maxConnections)
     config
   }
 
