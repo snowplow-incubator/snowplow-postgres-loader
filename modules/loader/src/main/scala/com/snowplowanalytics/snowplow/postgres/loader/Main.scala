@@ -14,14 +14,18 @@ package com.snowplowanalytics.snowplow.postgres.loader
 
 import scala.concurrent.ExecutionContext
 
+import cats.implicits._
 import cats.data.EitherT
-import cats.effect.{IOApp, IO, ExitCode}
+import cats.effect.{IOApp, IO, ExitCase, ExitCode, Fiber}
 
 import org.log4s.getLogger
 
 import doobie.hikari.HikariTransactor
 
-import fs2.Pipe
+import fs2.{Pipe, Stream}
+import fs2.concurrent.{Queue, NoneTerminatedQueue}
+
+import scala.concurrent.duration.DurationLong
 
 import com.snowplowanalytics.snowplow.badrows.{BadRow, Processor}
 import com.snowplowanalytics.snowplow.postgres.api.{State, DB}
@@ -72,14 +76,56 @@ object Main extends IOApp {
           case Purpose.Enriched       => utils.prepare[IO](cli.config.output.good.schema, xa)
           case Purpose.SelfDescribing => IO.unit
         }
-        _ <- env.source
-          .through(parsePayload(env.getPayload, cli.config.purpose))
-          .through(sinkAll(env.sinkPipe(xa), Sink.sinkResult(state, cli.iglu, processor, env.badRowSink)))
-          .through(env.checkpointer)
-          .compile
-          .drain
+        _ <- runWithShutdown {
+            env.source
+              .through(parsePayload(env.getPayload, cli.config.purpose))
+              .through(sinkAll(env.sinkPipe(xa), Sink.sinkResult(state, cli.iglu, processor, env.badRowSink)))
+          }(_.through(env.checkpointer))
       } yield ExitCode.Success
   }
+
+  /**
+   * This is the machinery needed to make sure outstanding records are checkpointed before the app
+   * terminates
+   *
+   * The stream runs on a separate fiber so that we can manually handle SIGINT.
+   *
+   * We use a queue as a level of indirection between the soure and the sink. When we receive a
+   * SIGINT or exception then we terminate the fiber by pushing a `None` to the queue.
+   *
+   * The source is only cancelled after the sink has been allowed to finish cleanly. We must not
+   * terminate the source any earlier, because this would shutdown the kinesis scheduler too early,
+   * and then we would not be able to checkpoint the outstanding records.
+   */
+  private def runWithShutdown[A](source: Stream[IO, A])(sink: Pipe[IO, A, Unit]): IO[Unit] =
+    Queue.synchronousNoneTerminated[IO, A].flatMap { queue =>
+      queue
+        .dequeue
+        .through(sink)
+        .concurrently(source.evalMap(x => queue.enqueue1(Some(x))).onFinalize(queue.enqueue1(None)))
+        .compile
+        .drain
+        .start
+        .bracketCase(_.join) {
+          case (_, ExitCase.Completed) =>
+            // The source has completed "naturally", e.g. processed all input files in the directory
+            IO.unit
+          case (fiber, ExitCase.Canceled) =>
+            // We received a SIGINT.  We want to checkpoint outstanding events before letting the app exit.
+            terminateStream(queue, fiber)
+          case (fiber, ExitCase.Error(e)) =>
+            // The source had a runtime exception.  We want to checkpoint oustanding events, and raise the original exception.
+            terminateStream(queue, fiber).adaptError(_ => e)
+        }
+    }
+
+
+  private def terminateStream[A](queue: NoneTerminatedQueue[IO, A], fiber: Fiber[IO, Unit]): IO[Unit] =
+    for {
+      _ <- IO.delay(println("Halting the source")) // can't use logger here because it might have been shut down already
+      _ <- queue.enqueue1(None)
+      _ <- fiber.join.timeoutTo(5.seconds, fiber.cancel)
+    } yield ()
 
   private def parsePayload[A](getPayload: A => IO[Either[BadRow, String]], purpose: Purpose): Pipe[IO, A, (A, Either[BadRow, Data])] =
     _.evalMap { record =>
