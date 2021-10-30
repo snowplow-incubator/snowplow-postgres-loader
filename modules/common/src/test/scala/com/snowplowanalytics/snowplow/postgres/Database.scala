@@ -102,7 +102,8 @@ object Database {
                    data_type::VARCHAR,
                    character_maximum_length::INTEGER
             FROM information_schema.columns
-            WHERE table_name = $tableName"""
+            WHERE table_name = $tableName
+            ORDER BY ordinal_position"""
       .query[(String, Option[String], Boolean, String, Option[Int])]
       .map(ColumnInfo.tupled)
       .to[List]
