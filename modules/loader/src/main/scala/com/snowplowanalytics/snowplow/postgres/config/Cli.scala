@@ -31,7 +31,11 @@ import io.circe.config.parser.{decode => hoconDecode}
 
 import scala.io.Source
 
-import com.snowplowanalytics.iglu.client.Client
+import com.snowplowanalytics.iglu.client.{CirceValidator, Client}
+import com.snowplowanalytics.iglu.client.resolver.Resolver
+import com.snowplowanalytics.iglu.client.resolver.registries.Registry
+import com.snowplowanalytics.iglu.core.SelfDescribingData
+import com.snowplowanalytics.iglu.core.circe.CirceIgluCodecs._
 
 import com.snowplowanalytics.snowplow.badrows.Processor
 
@@ -79,6 +83,8 @@ object Cli {
   private def fromRawConfig[F[_]: Async: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {
       resolverJson <- loadJson(rawConfig.resolver).toEitherT[F]
+      resolverSdj <- EitherT.fromEither[F](resolverJson.as[SelfDescribingData[Json]]).leftMap(_.show)
+      _ <- Client[F, Json](Resolver(List(Registry.EmbeddedRegistry), None), CirceValidator).check(resolverSdj).leftMap(_.show)
       igluClient <- Client.parseDefault[F](resolverJson).leftMap(_.show)
       configHocon <- loadHocon(rawConfig.config).toEitherT[F]
       appConfig <- hoconDecode[LoaderConfig](configHocon).leftMap(e => s"Could not parse config: ${e.show}").toEitherT[F]
