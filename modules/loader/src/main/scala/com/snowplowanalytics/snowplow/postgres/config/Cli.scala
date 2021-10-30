@@ -21,7 +21,7 @@ import scala.concurrent.ExecutionContext
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.{Clock, Sync, Async}
+import cats.effect.{Async, Clock, ContextShift, Sync}
 
 import com.typesafe.config.{Config => LightbendConfig, ConfigFactory}
 
@@ -55,7 +55,7 @@ object Cli {
       case Right(rawConfig) => fromRawConfig(rawConfig)
     }
 
-  def configPreCheck[F[_]: Async](cli: Cli[F])(implicit ec: ExecutionContext): EitherT[F, String, Cli[F]] = {
+  def configPreCheck[F[_]: Async: ContextShift](cli: Cli[F])(implicit ec: ExecutionContext): EitherT[F, String, Cli[F]] = {
     val inputCheck = cli.config.input match {
       case Local(pathInfo) =>
         fileExists(pathInfo)
