@@ -54,7 +54,7 @@ object Environment {
       }
     } yield env
 
-  def streamSinkExists[F[_]: Async](config: LoaderConfig.StreamSink)(implicit ec: ExecutionContext): F[Boolean] =
+  def streamSinkExists[F[_]: Async: ContextShift](config: LoaderConfig.StreamSink)(implicit ec: ExecutionContext): F[Boolean] =
     config match {
       case c: LoaderConfig.StreamSink.Kinesis => KinesisSink.streamExists(c)
       case c: LoaderConfig.StreamSink.PubSub => PubSubSink.topicExists(c)

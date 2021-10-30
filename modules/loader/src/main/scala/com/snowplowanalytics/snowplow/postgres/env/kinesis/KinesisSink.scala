@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext
 import scala.jdk.FutureConverters._
 import scala.util.{Success, Failure}
 
-import cats.effect.{Async, Resource, Blocker, Sync, Timer}
+import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 
 import fs2.aws.internal.{KinesisProducerClientImpl, KinesisProducerClient}
@@ -44,7 +44,7 @@ object KinesisSink {
 
   lazy val logger = getLogger
 
-  def create[F[_]: Async: Timer](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring, backoffPolicy: BackoffPolicy, blocker: Blocker): Resource[F, StreamSink[F]] =
+  def create[F[_]: Async: Timer: ContextShift](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring, backoffPolicy: BackoffPolicy, blocker: Blocker): Resource[F, StreamSink[F]] =
     mkProducer(config, monitoring).map(writeToKinesis(config.streamName, backoffPolicy, blocker))
 
   private def mkProducer[F[_]: Sync](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring): Resource[F, KinesisProducerClient[F]] =
@@ -65,16 +65,17 @@ object KinesisSink {
       .setRecordMaxBufferedTime(config.delayThreshold.toMillis)
   }
 
-  private def writeToKinesis[F[_]: Async: Timer](streamName: String,
-                                                 backoffPolicy: BackoffPolicy,
-                                                 blocker: Blocker)
-                                                (producer: KinesisProducerClient[F])
-                                                (data: Array[Byte]): F[Unit] = {
+  private def writeToKinesis[F[_]: Async: Timer: ContextShift](streamName: String,
+                                                               backoffPolicy: BackoffPolicy,
+                                                               blocker: Blocker)
+                                                              (producer: KinesisProducerClient[F])
+                                                              (data: Array[Byte]): F[Unit] = {
     val res = for {
       byteBuffer <- Async[F].delay(ByteBuffer.wrap(data))
       partitionKey <- Async[F].delay(UUID.randomUUID().toString)
       cb <- producer.putData(streamName, partitionKey, byteBuffer)
       cbRes <- registerCallback(cb, blocker)
+      _ <- ContextShift[F].shift
     } yield cbRes
     res.retryingOnFailuresAndAllErrors(
       wasSuccessful = _.isSuccessful,
@@ -97,7 +98,7 @@ object KinesisSink {
       )
     }
 
-  def streamExists[F[_]: Async](config: LoaderConfig.StreamSink.Kinesis)(implicit ec: ExecutionContext): F[Boolean] =
+  def streamExists[F[_]: Async: ContextShift](config: LoaderConfig.StreamSink.Kinesis)(implicit ec: ExecutionContext): F[Boolean] =
     mkKinesisClient(config.region).use { client =>
       Async[F].async[Boolean] { cb =>
         val describeStreamRequest = DescribeStreamRequest.builder()
@@ -111,6 +112,8 @@ object KinesisSink {
               cb(Right(streamStatus == StreamStatus.ACTIVE || streamStatus == StreamStatus.UPDATING))
             case Failure(_) => cb(Right(false))
           }
+      }.flatMap { result =>
+        ContextShift[F].shift.as(result)
       }
     }
 
