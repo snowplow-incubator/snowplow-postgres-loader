@@ -12,6 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.env.local
 
+import cats.Applicative
 import cats.implicits._
 import cats.effect.{ContextShift, Blocker, Resource, Timer, ConcurrentEffect}
 
@@ -33,7 +34,7 @@ object LocalEnv {
         Environment[F, String](
           getSource(blocker, config),
           badSink,
-          getPayload,
+          getPayload[F](_),
           checkpointer,
           SinkPipe.UnorderedPipe.forTransactor[F]
         )
@@ -52,7 +53,7 @@ object LocalEnv {
       }
   }
 
-  private def getPayload[F[_]](record: String): Either[BadRow, String] = record.asRight
+  private def getPayload[F[_]: Applicative](record: String): F[Either[BadRow, String]] = record.asRight.pure[F]
 
   private def checkpointer[F[_]]: Pipe[F, String, Unit] = _.map(_ => ())
 }

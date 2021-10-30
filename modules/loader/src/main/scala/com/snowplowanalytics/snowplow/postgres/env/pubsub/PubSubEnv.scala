@@ -12,6 +12,7 @@
  */
 package com.snowplowanalytics.snowplow.postgres.env.pubsub
 
+import cats.Applicative
 import cats.implicits._
 import cats.effect.{ContextShift, Blocker, Resource, Timer, ConcurrentEffect, Sync}
 
@@ -45,7 +46,7 @@ object PubSubEnv {
         Environment[F, ConsumerRecord[F, String]](
           PubsubGoogleConsumer.subscribe[F, String](blocker, project, subscription, pubsubErrorHandler[F], pubsubConfig),
           badSink,
-          getPayload,
+          getPayload(_),
           checkpointer(config.checkpointSettings.maxConcurrent),
           SinkPipe.UnorderedPipe.forTransactor[F]
         )
@@ -53,7 +54,7 @@ object PubSubEnv {
     )
   }
 
-  private def getPayload[F[_]](record: ConsumerRecord[F, String]): Either[BadRow, String] = record.value.asRight
+  private def getPayload[F[_]: Applicative](record: ConsumerRecord[F, String]): F[Either[BadRow, String]] = record.value.asRight.pure[F]
 
   private def checkpointer[F[_]: ConcurrentEffect](maxConcurrent: Int): Pipe[F, ConsumerRecord[F, String], Unit] = _.parEvalMapUnordered(maxConcurrent)(_.ack)
 

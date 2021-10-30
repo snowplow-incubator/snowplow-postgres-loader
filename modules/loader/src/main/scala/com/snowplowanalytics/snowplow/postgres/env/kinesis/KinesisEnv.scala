@@ -15,12 +15,12 @@ package com.snowplowanalytics.snowplow.postgres.env.kinesis
 import java.util.{Base64, UUID}
 import java.net.InetAddress
 import java.nio.charset.StandardCharsets
-import java.time.Instant
 
+import cats.Monad
 import cats.implicits._
-import cats.data.NonEmptyList
+import cats.data.{EitherT, NonEmptyList}
 
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Blocker, Clock, ConcurrentEffect, ContextShift, Resource, Sync, Timer}
 
 import fs2.{Stream, Pipe}
 import fs2.aws.kinesis.{CommittableRecord, Kinesis}
@@ -47,21 +47,20 @@ import com.snowplowanalytics.snowplow.postgres.env.kinesis.KinesisSink.mkKinesis
 
 object KinesisEnv {
 
-  def create[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker,
-                                                          config: Source.Kinesis,
-                                                          badSink: StreamSink[F],
-                                                          metrics: Monitoring.Metrics,
-                                                          purpose: Purpose): Resource[F, Environment[F, CommittableRecord]] =
+  def create[F[_]: ConcurrentEffect: ContextShift: Clock: Timer](blocker: Blocker,
+                                                                 config: Source.Kinesis,
+                                                                 badSink: StreamSink[F],
+                                                                 metrics: Monitoring.Metrics,
+                                                                 purpose: Purpose): Resource[F, Environment[F, CommittableRecord]] =
     for {
       kinesisClient <- mkKinesisClient[F](config.region)
       dynamoClient <- mkDynamoDbClient[F](config.region)
       cloudWatchClient <- mkCloudWatchClient[F](config.region)
       kinesis = Kinesis.create(blocker, scheduler(kinesisClient, dynamoClient, cloudWatchClient, config, metrics, _))
-      now <- Resource.eval(TimeUtils.now[F])
     } yield Environment(
         getSource(kinesis),
         badSink,
-        getPayload(purpose, now),
+        getPayload[F](purpose, _),
         checkpointer(kinesis, config.checkpointSettings),
         SinkPipe.OrderedPipe.forTransactor[F]
       )
@@ -72,21 +71,23 @@ object KinesisEnv {
     // therefore given stream name and app name are not used in anywhere.
     kinesis.readFromKinesisStream("THIS DOES NOTHING", "THIS DOES NOTHING")
 
-  private def getPayload(purpose: Purpose, now: Instant)(record: CommittableRecord): Either[BadRow, String] =
-    Either.catchNonFatal(StandardCharsets.UTF_8.decode(record.record.data()).toString)
-      .leftMap { _ =>
+  private def getPayload[F[_]: Clock: Monad](purpose: Purpose, record: CommittableRecord): F[Either[BadRow, String]] =
+    EitherT.fromEither[F](Either.catchNonFatal(StandardCharsets.UTF_8.decode(record.record.data()).toString))
+      .leftSemiflatMap[BadRow] { _ =>
         val payload = StandardCharsets.UTF_8.decode(Base64.getEncoder.encode(record.record.data())).toString
         purpose match {
           case Purpose.Enriched =>
-            BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload))
+            Monad[F].pure(BadRow.LoaderParsingError(Cli.processor, NotTSV, Payload.RawPayload(payload)))
           case Purpose.SelfDescribing =>
-            val failure = Failure.GenericFailure(
-              now,
-              NonEmptyList.of("\"Cannot deserialize self-describing JSON from record\"")
-            )
-            BadRow.GenericError(Cli.processor, failure, Payload.RawPayload(payload))
+            TimeUtils.now[F].map { now =>
+              val failure = Failure.GenericFailure(
+                now,
+                NonEmptyList.of("\"Cannot deserialize self-describing JSON from record\"")
+              )
+              BadRow.GenericError(Cli.processor, failure, Payload.RawPayload(payload))
+            }
         }
-      }
+      }.value
 
   private def checkpointer[F[_]](kinesis: Kinesis[F], checkpointSettings: Source.Kinesis.CheckpointSettings): Pipe[F, CommittableRecord, Unit] =
     kinesis.checkpointRecords(checkpointSettings.unwrap).andThen(_.void)
