@@ -31,7 +31,7 @@ import com.snowplowanalytics.snowplow.postgres.env.pubsub.{PubSubSink, PubSubEnv
 final case class Environment[F[_], A](
   source: Stream[F, A],
   badRowSink: StreamSink[F],
-  getPayload: A => Either[BadRow, String],
+  getPayload: A => F[Either[BadRow, String]],
   checkpointer: Pipe[F, A, Unit],
   sinkPipe: HikariTransactor[F] => SinkPipe[F]
 )

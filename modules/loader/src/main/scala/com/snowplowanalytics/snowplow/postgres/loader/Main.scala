@@ -12,10 +12,9 @@
  */
 package com.snowplowanalytics.snowplow.postgres.loader
 
-import java.time.Instant
-
 import scala.concurrent.ExecutionContext
 
+import cats.data.EitherT
 import cats.effect.{IOApp, IO, ExitCode}
 
 import org.log4s.getLogger
@@ -31,7 +30,7 @@ import com.snowplowanalytics.snowplow.postgres.config.LoaderConfig.Purpose
 import com.snowplowanalytics.snowplow.postgres.generated.BuildInfo
 import com.snowplowanalytics.snowplow.postgres.resources
 import com.snowplowanalytics.snowplow.postgres.storage.utils
-import com.snowplowanalytics.snowplow.postgres.streaming.{Sink, SinkPipe, TimeUtils}
+import com.snowplowanalytics.snowplow.postgres.streaming.{Sink, SinkPipe}
 import com.snowplowanalytics.snowplow.postgres.env.Environment
 import com.snowplowanalytics.snowplow.postgres.streaming.data.Data
 import com.snowplowanalytics.snowplow.postgres.utils.ParserUtils
@@ -69,13 +68,12 @@ object Main extends IOApp {
   ): IO[ExitCode] = {
       implicit val db: DB[IO] = DB.interpreter[IO](cli.iglu.resolver, xa, cli.config.output.good.schema)
       for {
-        now <- TimeUtils.now[IO]
         _ <- cli.config.purpose match {
           case Purpose.Enriched       => utils.prepare[IO](cli.config.output.good.schema, xa)
           case Purpose.SelfDescribing => IO.unit
         }
         _ <- env.source
-          .through(parsePayload(env.getPayload, cli.config.purpose, now))
+          .through(parsePayload(env.getPayload, cli.config.purpose))
           .through(sinkAll(env.sinkPipe(xa), Sink.sinkResult(state, cli.iglu, processor, env.badRowSink)))
           .through(env.checkpointer)
           .compile
@@ -83,13 +81,13 @@ object Main extends IOApp {
       } yield ExitCode.Success
   }
 
-  private def parsePayload[A](getPayload: A => Either[BadRow, String], purpose: Purpose, now: Instant): Pipe[IO, A, (A, Either[BadRow, Data])] =
-    _.map { record =>
+  private def parsePayload[A](getPayload: A => IO[Either[BadRow, String]], purpose: Purpose): Pipe[IO, A, (A, Either[BadRow, Data])] =
+    _.evalMap { record =>
       val p = for {
-        payload <- getPayload(record)
-        parsedPayload <- ParserUtils.parseItem(purpose, payload, now)
+        payload <- EitherT(getPayload(record))
+        parsedPayload <- EitherT(ParserUtils.parseItem[IO](purpose, payload))
       } yield parsedPayload
-      (record, p)
+      p.value.map((record, _))
     }
 
   private def sinkAll[A](sinkPipe: SinkPipe[IO], sinkResult: Either[BadRow, Data] => IO[Unit]): Pipe[IO, (A, Either[BadRow, Data]), A] =
