@@ -12,9 +12,33 @@
  */
 package com.snowplowanalytics.snowplow.postgres.streaming
 
-import cats.effect.{Resource, Concurrent}
+import org.log4s.getLogger
+
+import cats.effect.{Resource, Concurrent, Sync, Timer}
+import cats.effect.concurrent.Ref
+
+import fs2.Stream
+
+import scala.concurrent.duration.FiniteDuration
 
 object DummyStreamSink {
-  def create[F[_]: Concurrent]:Resource[F, StreamSink[F]] =
-    Resource.pure[F, StreamSink[F]](_ => Concurrent[F].pure(()))
+  def create[F[_]: Concurrent: Timer](period: FiniteDuration): Resource[F, StreamSink[F]] =
+    for {
+      counter <- Resource.eval(Ref.of(0))
+      _ <- Resource.make(Concurrent[F].start(reporter(counter, period)))(_.cancel)
+  } yield { _ =>
+    counter.update(_ + 1)
+  }
+
+  lazy val logger = getLogger
+
+  private def reporter[F[_]: Sync: Timer](counter: Ref[F, Int], period: FiniteDuration): F[Unit] =
+    Stream.awakeDelay[F](period)
+      .evalMap(_ => counter.getAndSet(0))
+      .evalMap { count =>
+        if (count > 0) Sync[F].delay(logger.info(s"Discarded $count bad rows"))
+        else Sync[F].unit
+      }
+      .compile
+      .drain
 }
