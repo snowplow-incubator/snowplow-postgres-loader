@@ -42,6 +42,9 @@
       "type": "Local"
       # Path for bad row sink.
       "path": "./tmp/bad"
+
+      # Only used when "type" is "Noop" or missing. How often to log number of bad rows discarded.
+      "reportPeriod": 10 seconds
     }
   }
 

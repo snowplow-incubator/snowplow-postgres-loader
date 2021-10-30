@@ -57,7 +57,7 @@ class LocalSourceSpec extends Database {
             10,
             None
           ),
-          LoaderConfig.StreamSink.Noop
+          LoaderConfig.StreamSink.Noop(30.seconds)
         ),
         Purpose.Enriched,
         Monitoring(Monitoring.Metrics(false)),

@@ -57,7 +57,7 @@ class CliSpec extends Specification {
             10,
             None
           ),
-          LoaderConfig.StreamSink.Noop
+          LoaderConfig.StreamSink.Noop(30.seconds)
         ),
         Purpose.Enriched,
         Monitoring(Monitoring.Metrics(true)),
@@ -136,7 +136,7 @@ class CliSpec extends Specification {
             10,
             None
           ),
-          LoaderConfig.StreamSink.Noop
+          LoaderConfig.StreamSink.Noop(30.seconds)
         ),
         Purpose.Enriched,
         Monitoring(Monitoring.Metrics(true)),
@@ -209,7 +209,7 @@ class CliSpec extends Specification {
             10,
             None
           ),
-          LoaderConfig.StreamSink.Noop
+          LoaderConfig.StreamSink.Noop(30.seconds)
         ),
         Purpose.Enriched,
         Monitoring(Monitoring.Metrics(true)),
@@ -271,7 +271,7 @@ class CliSpec extends Specification {
             10,
             None
           ),
-          LoaderConfig.StreamSink.Noop
+          LoaderConfig.StreamSink.Noop(30.seconds)
         ),
         Purpose.Enriched,
         Monitoring(Monitoring.Metrics(true)),

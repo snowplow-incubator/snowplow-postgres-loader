@@ -63,6 +63,9 @@
       # The number of threads used internally by library to process the callback after message delivery
       # Default is 1
       "numCallbackExecutors": 1
+
+      # Only used when "type" is "Noop" or missing. How often to log number of bad rows discarded.
+      "reportPeriod": 10 seconds
     }
   }
 
