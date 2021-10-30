@@ -74,6 +74,9 @@
       # Max size of the batch in bytes before emitting
       # Default is 5MB
       "maxBatchBytes": 5000000
+
+      # Only used when "type" is "Noop" or missing. How often to log number of bad rows discarded.
+      "reportPeriod": 10 seconds
     }
   }
 

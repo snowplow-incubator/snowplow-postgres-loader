@@ -42,7 +42,7 @@ object Environment {
                                                           blocker: Blocker) =
     for {
       badSink <- config.output.bad match {
-        case LoaderConfig.StreamSink.Noop => DummyStreamSink.create
+        case LoaderConfig.StreamSink.Noop(period) => DummyStreamSink.create(period)
         case c: LoaderConfig.StreamSink.Kinesis => KinesisSink.create(c, config.monitoring, config.backoffPolicy, blocker)
         case c: LoaderConfig.StreamSink.PubSub => PubSubSink.create(c, config.backoffPolicy)
         case c: LoaderConfig.StreamSink.Local => LocalSink.create(c, blocker)
