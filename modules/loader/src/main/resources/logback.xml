@@ -1,5 +1,5 @@
 <configuration>
-  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+  <appender name="COLOR" class="ch.qos.logback.core.ConsoleAppender">
     <!-- On Windows machines setting withJansi to true enables ANSI
          color code interpretation by the Jansi library. This requires
          org.fusesource.jansi:jansi:1.8 on the class path.  Note that
@@ -11,8 +11,15 @@
     </encoder>
   </appender>
 
+  <appender name="NOCOLOR" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>[%thread] %-5level %logger{15} - %msg %n</pattern>
+    </encoder>
+  </appender>
+
+  <variable name="LOG_MODE" value="${LOG_MODE:-NOCOLOR}" />
   <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
-    <appender-ref ref="STDOUT" />
+    <appender-ref ref="${LOG_MODE}" />
   </appender>
 
   <!-- Set environment varialbe LOG_LEVEL=DEBUG to override this setting -->
