@@ -234,7 +234,7 @@ object LoaderConfig {
   sealed trait StreamSink extends Product with Serializable
   object StreamSink {
 
-    case object Noop extends StreamSink
+    case class Noop(reportPeriod: FiniteDuration) extends StreamSink
 
     case class Local(path: PathInfo) extends StreamSink
 
