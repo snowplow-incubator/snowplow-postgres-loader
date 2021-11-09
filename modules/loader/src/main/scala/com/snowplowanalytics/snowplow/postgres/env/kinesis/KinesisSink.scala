@@ -19,7 +19,7 @@ import scala.concurrent.ExecutionContext
 import scala.jdk.FutureConverters._
 import scala.util.{Success, Failure}
 
-import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.{Async, ContextShift, Resource, Sync, Timer}
 import cats.implicits._
 
 import fs2.aws.internal.{KinesisProducerClientImpl, KinesisProducerClient}
@@ -32,7 +32,7 @@ import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest
 import software.amazon.awssdk.services.kinesis.model.StreamStatus
 import software.amazon.awssdk.regions.Region
 
-import com.google.common.util.concurrent.{Futures, ListenableFuture, FutureCallback}
+import com.google.common.util.concurrent.{Futures, ListenableFuture, FutureCallback, MoreExecutors}
 
 import org.log4s.getLogger
 
@@ -44,8 +44,8 @@ object KinesisSink {
 
   lazy val logger = getLogger
 
-  def create[F[_]: Async: Timer: ContextShift](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring, backoffPolicy: BackoffPolicy, blocker: Blocker): Resource[F, StreamSink[F]] =
-    mkProducer(config, monitoring).map(writeToKinesis(config.streamName, backoffPolicy, blocker))
+  def create[F[_]: Async: Timer: ContextShift](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring, backoffPolicy: BackoffPolicy): Resource[F, StreamSink[F]] =
+    mkProducer(config, monitoring).map(writeToKinesis(config.streamName, backoffPolicy))
 
   private def mkProducer[F[_]: Sync](config: LoaderConfig.StreamSink.Kinesis, monitoring: Monitoring): Resource[F, KinesisProducerClient[F]] =
     Resource.eval(
@@ -66,15 +66,14 @@ object KinesisSink {
   }
 
   private def writeToKinesis[F[_]: Async: Timer: ContextShift](streamName: String,
-                                                               backoffPolicy: BackoffPolicy,
-                                                               blocker: Blocker)
+                                                               backoffPolicy: BackoffPolicy)
                                                               (producer: KinesisProducerClient[F])
                                                               (data: Array[Byte]): F[Unit] = {
     val res = for {
       byteBuffer <- Async[F].delay(ByteBuffer.wrap(data))
       partitionKey <- Async[F].delay(UUID.randomUUID().toString)
       cb <- producer.putData(streamName, partitionKey, byteBuffer)
-      cbRes <- registerCallback(cb, blocker)
+      cbRes <- registerCallback(cb)
       _ <- ContextShift[F].shift
     } yield cbRes
     res.retryingOnFailuresAndAllErrors(
@@ -85,7 +84,7 @@ object KinesisSink {
     ).void
   }
 
-  private def registerCallback[F[_]: Async](f: ListenableFuture[UserRecordResult], blocker: Blocker): F[UserRecordResult] =
+  private def registerCallback[F[_]: Async](f: ListenableFuture[UserRecordResult]): F[UserRecordResult] =
     Async[F].async[UserRecordResult] { cb =>
       Futures.addCallback(
         f,
@@ -94,7 +93,7 @@ object KinesisSink {
 
           override def onSuccess(result: UserRecordResult): Unit = cb(Right(result))
         },
-        (command: Runnable) => blocker.blockingContext.execute(command)
+        MoreExecutors.directExecutor
       )
     }
 
