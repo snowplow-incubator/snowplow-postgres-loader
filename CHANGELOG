@@ -1,3 +1,15 @@
+Version 0.3.2 (2021-11-15)
+--------------------------
+Use direct executor for KPL callback (#73)
+Github action to scan docker image with lacework (#72)
+Warn about bad rows even in DummyStream sink (#64)
+Add latest tag to Docker build explicitly (#61)
+Disable colored logging by default (#63)
+Fix flaky sink test: return columns in order (#71)
+Checkpoint outstanding records when loader terminates (#69)
+Fix timestamp in parsing error (#68)
+Use ContextShift after Async callback in KinesisSink (#67)
+
 Version 0.3.1 (2021-08-30)
 --------------------------
 Make database thread pool size configurable (#60)
