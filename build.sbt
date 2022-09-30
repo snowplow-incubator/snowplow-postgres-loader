@@ -68,6 +68,7 @@ lazy val loader = project
       Dependencies.fs2PubSub,
       Dependencies.fs2BlobCore,
       Dependencies.awsKinesisProducer,
+      Dependencies.awsKinesisClient,
       Dependencies.awsSts,
       Dependencies.decline,
       Dependencies.config,
