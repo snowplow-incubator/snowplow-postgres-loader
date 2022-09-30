@@ -248,8 +248,7 @@ object LoaderConfig {
                       topicId: String,
                       delayThreshold: FiniteDuration,
                       maxBatchSize: Long,
-                      maxBatchBytes: Long,
-                      numCallbackExecutors: Int) extends StreamSink
+                      maxBatchBytes: Long) extends StreamSink
 
     implicit def sinkConfigDecoder: Decoder[StreamSink] =
       deriveConfiguredDecoder[StreamSink]
