@@ -24,6 +24,7 @@ object Dependencies {
     val awsKinesisProducer = "0.14.13"
     val awsSts             = "2.17.283"
     val awsKinesisClient   = "2.4.3"
+    val gson               = "2.8.9"
 
     // Scala third-party
     val decline      = "2.1.0"
@@ -56,6 +57,7 @@ object Dependencies {
   val awsKinesisProducer = "com.amazonaws"              % "amazon-kinesis-producer" % V.awsKinesisProducer // override transitive version to address security vulnerabilities
   val awsKinesisClient   = "software.amazon.kinesis"    % "amazon-kinesis-client"   % V.awsKinesisClient // override transitive version to address security vulnerabilities
   val awsSts             = "software.amazon.awssdk"     % "sts"                     % V.awsSts // override transitive version to address security vulnerabilities
+  val gson               = "com.google.code.gson"       % "gson"                    % V.gson // override transitive version to address security vulnerabilities
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
