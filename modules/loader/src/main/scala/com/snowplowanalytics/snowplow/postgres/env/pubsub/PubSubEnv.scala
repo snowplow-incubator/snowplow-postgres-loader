@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.postgres.env.pubsub
 
 import cats.Applicative
 import cats.implicits._
-import cats.effect.{ContextShift, Blocker, Resource, Timer, ConcurrentEffect, Sync}
+import cats.effect.{ContextShift, Blocker, Resource, ConcurrentEffect, Sync}
 
 import fs2.Pipe
 
@@ -36,7 +36,7 @@ object PubSubEnv {
 
   private lazy val logger = getLogger
 
-  def create[F[_]: ConcurrentEffect: ContextShift: Timer](blocker: Blocker, config: Source.PubSub, badSink: StreamSink[F]): Resource[F, Environment[F, ConsumerRecord[F, String]]] = {
+  def create[F[_]: ConcurrentEffect: ContextShift](blocker: Blocker, config: Source.PubSub, badSink: StreamSink[F]): Resource[F, Environment[F, ConsumerRecord[F, String]]] = {
     implicit val decoder: MessageDecoder[String] = pubsubDataDecoder
     val project = ProjectId(config.projectId)
     val subscription = Subscription(config.subscriptionId)

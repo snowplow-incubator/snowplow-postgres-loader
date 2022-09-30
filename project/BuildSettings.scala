@@ -28,7 +28,7 @@ import scoverage.ScoverageKeys._
 
 object BuildSettings {
   val scala212 = "2.12.11"
-  val scala213 = "2.13.3"
+  val scala213 = "2.13.9"
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
@@ -101,7 +101,12 @@ object BuildSettings {
       case x if x.endsWith("native-image.properties") => MergeStrategy.first
       case x if x.endsWith("module-info.class") => MergeStrategy.first
       case x if x.endsWith("reflection-config.json") => MergeStrategy.first
-      case x if x.startsWith("codegen-resources") => MergeStrategy.discard
+      case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
+      case PathList("META-INF", "mailcap.default") => MergeStrategy.discard
+      case PathList("META-INF", "mimetypes.default") => MergeStrategy.discard
+      case PathList("google", "protobuf", _ @ _*) => MergeStrategy.first
+      case PathList("org", "slf4j", _ @ _*) => MergeStrategy.first
+      case PathList("codegen-resources", _ @ _*) => MergeStrategy.discard
       case x =>
         val oldStrategy = (assembly / assemblyMergeStrategy).value
         oldStrategy(x)

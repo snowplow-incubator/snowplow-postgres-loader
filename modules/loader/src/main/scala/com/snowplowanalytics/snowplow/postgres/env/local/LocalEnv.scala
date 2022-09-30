@@ -14,7 +14,7 @@ package com.snowplowanalytics.snowplow.postgres.env.local
 
 import cats.Applicative
 import cats.implicits._
-import cats.effect.{ContextShift, Blocker, Resource, Timer, ConcurrentEffect}
+import cats.effect.{ContextShift, Blocker, Resource, ConcurrentEffect}
 
 import fs2.{Pipe, Stream}
 
@@ -28,7 +28,7 @@ import com.snowplowanalytics.snowplow.postgres.env.Environment
 
 object LocalEnv {
 
-  def create[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.Local, badSink: StreamSink[F]): Resource[F, Environment[F, String]] = {
+  def create[F[_]: ConcurrentEffect : ContextShift](blocker: Blocker, config: Source.Local, badSink: StreamSink[F]): Resource[F, Environment[F, String]] = {
     Resource.eval {
       ConcurrentEffect[F].delay(
         Environment[F, String](
@@ -42,7 +42,7 @@ object LocalEnv {
     }
   }
 
-  private def getSource[F[_]: ConcurrentEffect : ContextShift : Timer](blocker: Blocker, config: Source.Local): Stream[F, String] = {
+  private def getSource[F[_]: ConcurrentEffect : ContextShift](blocker: Blocker, config: Source.Local): Stream[F, String] = {
     val store: Store[F] = FileStore[F](config.path.pathType.fsroot, blocker)
     store.list(config.path.value, recursive = true)
       .flatMap { p =>
