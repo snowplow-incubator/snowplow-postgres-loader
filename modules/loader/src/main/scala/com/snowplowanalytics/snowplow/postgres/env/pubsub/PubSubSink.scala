@@ -50,9 +50,6 @@ object PubSubSink {
       // Set the delay threshold to use for batching. After this amount of time has elapsed (counting
       // from the first element added), the elements will be wrapped up in a batch and sent.
       delayThreshold = config.delayThreshold,
-      // The number of threads used internally by permutive library to process the callback after message delivery.
-      // The callback does very little "work" so it is best to use minimum number of threads.
-      callbackExecutors = config.numCallbackExecutors,
       onFailedTerminate = err => Async[F].delay(logger.error(err)("PubSub sink termination error"))
     )
 

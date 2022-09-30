@@ -176,8 +176,7 @@ class CliSpec extends Specification {
             "my-topic",
             200.milliseconds,
             500L,
-            5000000L,
-            1
+            5000000L
           ),
         ),
         Purpose.Enriched,
