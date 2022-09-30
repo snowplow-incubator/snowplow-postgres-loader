@@ -196,13 +196,13 @@ object Type {
     * Check enum contains some different types
     * (string and number or number and boolean)
     */
-  private def isComplexEnum(enum: List[Json]) = {
+  private def isComplexEnum(`enum`: List[Json]) = {
     // Predicates
     def isNumeric(s: Json) = s.isNumber
     def isNonNumeric(s: Json) = !isNumeric(s)
     def isBoolean(s: Json) = s.isBoolean
 
-    val nonNullEnum = excludeNull(enum)
+    val nonNullEnum = excludeNull(`enum`)
     somePredicates(nonNullEnum, List(isNumeric _, isNonNumeric _, isBoolean _), 2)
   }
 
@@ -228,26 +228,26 @@ object Type {
         case _ :: tail                        => somePredicates(instances, tail, quantity)
       }
 
-  private def isIntegerEnum(enum: List[Json]): Boolean =
-    excludeNull(enum) match {
+  private def isIntegerEnum(`enum`: List[Json]): Boolean =
+    excludeNull(`enum`) match {
       case Nil => false
       case values => values.forall(_.asNumber.flatMap(_.toInt).isDefined)
     }
 
-  private def isBigIntEnum(enum: List[Json]): Boolean =
-    excludeNull(enum) match {
+  private def isBigIntEnum(`enum`: List[Json]): Boolean =
+    excludeNull(`enum`) match {
       case Nil => false
       case values => values.forall(_.asNumber.flatMap(_.toLong).isDefined)
     }
 
-  private def isBooleanEnum(enum: List[Json]): Boolean =
-    excludeNull(enum) match {
+  private def isBooleanEnum(`enum`: List[Json]): Boolean =
+    excludeNull(`enum`) match {
       case Nil => false
       case values => values.forall(_.isBoolean)
     }
 
-  private def isStringEnum(enum: List[Json]): Boolean =
-    excludeNull(enum) match {
+  private def isStringEnum(`enum`: List[Json]): Boolean =
+    excludeNull(`enum`) match {
       case Nil => false
       case values => values.forall(_.isString)
     }

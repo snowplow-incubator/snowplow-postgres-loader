@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets
 import cats.data.{EitherT, NonEmptyList}
 import cats.implicits._
 
-import cats.effect.{Clock, ContextShift, Sync}
+import cats.effect.{Clock, Sync}
 
 import doobie._
 import doobie.implicits._
@@ -43,7 +43,7 @@ object Sink {
 
   type Insert = ConnectionIO[Unit]
 
-  def sinkResult[F[_]: Sync: ContextShift: Clock: DB](
+  def sinkResult[F[_]: Sync: Clock: DB](
     state: State[F],
     client: Client[F, Json],
     processor: Processor,
@@ -93,7 +93,7 @@ object Sink {
     result.value
   }
 
-  def bad[F[_]: Sync](badRow: BadRow, badSink: StreamSink[F]): F[Unit] =
+  def bad[F[_]](badRow: BadRow, badSink: StreamSink[F]): F[Unit] =
     badSink(badRow.compact.getBytes(StandardCharsets.UTF_8))
   /**
     * Build an `INSERT` action for a single entity

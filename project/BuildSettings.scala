@@ -28,7 +28,7 @@ import scoverage.ScoverageKeys._
 
 object BuildSettings {
   val scala212 = "2.12.11"
-  val scala213 = "2.13.3"
+  val scala213 = "2.13.9"
 
   lazy val projectSettings = Seq(
     organization := "com.snowplowanalytics",
