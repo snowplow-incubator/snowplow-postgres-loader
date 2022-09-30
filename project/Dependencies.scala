@@ -23,6 +23,7 @@ object Dependencies {
     val jacksonDatabind = "2.12.6.1"
     val gson            = "2.8.9"
     val protobuf        = "3.16.1"
+    val nettyCodec      = "4.1.68.Final"
 
     // Scala third-party
     val decline      = "2.1.0"
@@ -54,6 +55,7 @@ object Dependencies {
   val jacksonDatabind = "com.fasterxml.jackson.core" % "jackson-databind" % V.jacksonDatabind // override transitive version to address security vulnerabilities
   val gson            = "com.google.code.gson"       % "gson"             % V.gson // override transitive version to address security vulnerabilities
   val protobuf        = "com.google.protobuf"        % "protobuf-java"    % V.protobuf // override transitive version to address security vulnerabilities
+  val nettyCodec      = "io.netty"                   % "netty-codec"      % V.nettyCodec
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
