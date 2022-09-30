@@ -72,6 +72,9 @@ lazy val loader = project
       Dependencies.specs2
     )
   )
+  .settings(
+    excludeDependencies ++= Dependencies.exclusions
+  )
   .dependsOn(common % "compile->compile;test->test")
   .enablePlugins(JavaAppPackaging, DockerPlugin, BuildInfoPlugin)
 
