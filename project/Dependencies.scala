@@ -22,6 +22,7 @@ object Dependencies {
     val logback         = "1.2.5"
     val jacksonDatabind = "2.12.6.1"
     val gson            = "2.8.9"
+    val protobuf        = "3.16.1"
 
     // Scala third-party
     val decline      = "2.1.0"
@@ -52,6 +53,7 @@ object Dependencies {
   val config          = "com.typesafe"               % "config"           % V.config
   val jacksonDatabind = "com.fasterxml.jackson.core" % "jackson-databind" % V.jacksonDatabind // override transitive version to address security vulnerabilities
   val gson            = "com.google.code.gson"       % "gson"             % V.gson // override transitive version to address security vulnerabilities
+  val protobuf        = "com.google.protobuf"        % "protobuf-java"    % V.protobuf // override transitive version to address security vulnerabilities
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres

@@ -68,6 +68,7 @@ lazy val loader = project
       Dependencies.fs2PubSub,
       Dependencies.fs2BlobCore,
       Dependencies.gson,
+      Dependencies.protobuf,
       Dependencies.decline,
       Dependencies.config,
       Dependencies.specs2
