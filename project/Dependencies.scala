@@ -17,7 +17,7 @@ object Dependencies {
 
   object V {
     // Java
-    val postgres        = "42.2.23"
+    val postgres        = "42.4.1"
     val commons         = "1.15"
     val logback         = "1.2.5"
     val jacksonDatabind = "2.12.6.1"
