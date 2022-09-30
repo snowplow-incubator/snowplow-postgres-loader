@@ -22,6 +22,7 @@ object Dependencies {
     val logback            = "1.2.5"
     val jacksonDatabind    = "2.12.6.1"
     val awsKinesisProducer = "0.14.13"
+    val awsSts             = "2.17.283"
 
     // Scala third-party
     val decline      = "2.1.0"
@@ -52,6 +53,7 @@ object Dependencies {
   val config             = "com.typesafe"               % "config"                  % V.config
   val jacksonDatabind    = "com.fasterxml.jackson.core" % "jackson-databind"        % V.jacksonDatabind // override transitive version to address security vulnerabilities
   val awsKinesisProducer = "com.amazonaws"              % "amazon-kinesis-producer" % V.awsKinesisProducer // override transitive version to address security vulnerabilities
+  val awsSts             = "software.amazon.awssdk"     % "sts"                     % V.awsSts // override transitive version to address security vulnerabilities
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres
