@@ -45,7 +45,8 @@ lazy val common = project
       Dependencies.circeLiteral % Test,
       Dependencies.specs2,
       Dependencies.specs2Check,
-      Dependencies.scalaCheck
+      Dependencies.scalaCheck,
+      Dependencies.jacksonDatabind,
     )
   )
 
