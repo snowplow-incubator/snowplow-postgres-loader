@@ -67,9 +67,10 @@ lazy val loader = project
       Dependencies.fs2Aws,
       Dependencies.fs2PubSub,
       Dependencies.fs2BlobCore,
+      Dependencies.awsKinesisProducer,
       Dependencies.decline,
       Dependencies.config,
-      Dependencies.specs2
+      Dependencies.specs2,
     )
   )
   .dependsOn(common % "compile->compile;test->test")
