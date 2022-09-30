@@ -21,7 +21,7 @@ import scala.concurrent.ExecutionContext
 import cats.data.{EitherT, ValidatedNel}
 import cats.implicits._
 
-import cats.effect.{Async, Clock, ContextShift, Sync}
+import cats.effect.{Async, ContextShift, Sync}
 
 import com.typesafe.config.{Config => LightbendConfig, ConfigFactory}
 
@@ -49,7 +49,7 @@ object Cli {
   val processor = Processor(BuildInfo.name, BuildInfo.version)
 
   /** Parse list of arguments, validate against schema and initialize */
-  def parse[F[_]: Async: Clock](args: List[String]): EitherT[F, String, Cli[F]] =
+  def parse[F[_]: Async](args: List[String]): EitherT[F, String, Cli[F]] =
     command.parse(args) match {
       case Left(help)       => EitherT.leftT[F, Cli[F]](help.show)
       case Right(rawConfig) => fromRawConfig(rawConfig)
@@ -76,7 +76,7 @@ object Cli {
   private def fileExists[F[_]: Async](pathInfo: PathInfo): F[Boolean] =
     Sync[F].delay(Files.exists(pathInfo.allPath))
 
-  private def fromRawConfig[F[_]: Async: Clock](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
+  private def fromRawConfig[F[_]: Async](rawConfig: RawConfig): EitherT[F, String, Cli[F]] =
     for {
       resolverJson <- loadJson(rawConfig.resolver).toEitherT[F]
       igluClient <- Client.parseDefault[F](resolverJson).leftMap(_.show)

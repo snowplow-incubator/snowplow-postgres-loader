@@ -84,8 +84,9 @@ class StateSpec extends Specification with ScalaCheck {
           result.unsafeRunSync() must beLike {
             case ((counter, keys), time) =>
               val totalDelays = durations.foldMap(_.toMillis)
-              val allBlocking = time must beBetween(totalDelays, totalDelays * 2)
-              allBlocking.and(counter must beEqualTo(durations.length)).and(keys must beEqualTo(Set(key)))
+              time must beBetween(totalDelays, totalDelays * 2)
+              counter must beEqualTo(durations.length)
+              keys must beEqualTo(Set(key))
           }
         }
         .setParameters(Parameters(minTestsOk = 5, maxSize = 10))
@@ -109,8 +110,9 @@ class StateSpec extends Specification with ScalaCheck {
           result.unsafeRunSync() must beLike {
             case ((counter, keys), time) =>
               val maxDelay = durations.fold(5.millis)((a, b) => a.max(b)).toMillis
-              val nonBlocking = time must lessThan(maxDelay * 2)
-              nonBlocking.and(counter must beEqualTo(durations.length)).and(keys must beEqualTo(Set()))
+              time must lessThan(maxDelay * 2)
+              counter must beEqualTo(durations.length)
+              keys must beEqualTo(Set())
           }
         }
         .setParameters(Parameters(minTestsOk = 5, maxSize = 10))
