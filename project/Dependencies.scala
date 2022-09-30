@@ -28,7 +28,7 @@ object Dependencies {
     val circe        = "0.14.1"
     val circeConfig  = "0.8.0"
     val fs2Aws       = "3.1.1"
-    val fs2PubSub    = "0.17.0"
+    val fs2PubSub    = "0.18.1"
     val doobie       = "0.13.4"
     val fs2          = "2.5.9"
     val log4s        = "1.10.0"
