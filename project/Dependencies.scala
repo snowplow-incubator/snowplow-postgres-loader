@@ -93,4 +93,7 @@ object Dependencies {
   val specs2Check  = "org.specs2"     %% "specs2-scalacheck" % V.specs2     % Test
   val scalaCheck   = "org.scalacheck" %% "scalacheck"        % V.scalaCheck % Test
 
+  val exclusions = Seq(
+    ExclusionRule(organization = "org.apache.kafka", name = "kafka-clients")
+  )
 }
