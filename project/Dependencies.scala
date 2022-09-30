@@ -24,6 +24,7 @@ object Dependencies {
     val gson            = "2.8.9"
     val protobuf        = "3.16.1"
     val nettyCodec      = "4.1.68.Final"
+    val commonsCompress = "1.21"
 
     // Scala third-party
     val decline      = "2.1.0"
@@ -56,6 +57,7 @@ object Dependencies {
   val gson            = "com.google.code.gson"       % "gson"             % V.gson // override transitive version to address security vulnerabilities
   val protobuf        = "com.google.protobuf"        % "protobuf-java"    % V.protobuf // override transitive version to address security vulnerabilities
   val nettyCodec      = "io.netty"                   % "netty-codec"      % V.nettyCodec
+  val commonsCompress = "org.apache.commons"         % "commons-compress" % V.commonsCompress
 
   // Snyk warnings
   val postgres      = "org.postgresql" % "postgresql"             % V.postgres

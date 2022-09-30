@@ -70,6 +70,7 @@ lazy val loader = project
       Dependencies.gson,
       Dependencies.protobuf,
       Dependencies.nettyCodec,
+      Dependencies.commonsCompress,
       Dependencies.decline,
       Dependencies.config,
       Dependencies.specs2
