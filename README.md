@@ -5,20 +5,17 @@
 
 # Snowplow Postgres Loader
 
-## Quickstart
+## Overview
 
-Assuming [Docker][docker] is installed:
+The Snowplow Postgres Loader consumes records from an Amazon Kinesis stream and Google Pubsub topic and writes them to PostgreSQL database.
 
-1. Add own `config.hocon` to specify connection and stream details, using [the examples][config] as a guide and [the docs site][config-docs] as a reference.
-2. Add own [`resolver.json`][resolver] (all schemas must be on [Iglu Server 0.6.0+][iglu-server])
-3. Run the Docker image:
+## Find out more
 
-```bash
-$ docker run --rm -v $PWD/config:/snowplow/config \
-    snowplow/snowplow-postgres-loader:latest \
-    --resolver /snowplow/config/resolver.json \
-    --config /snowplow/config/config.hocon
-```
+| Technical Docs             | Setup Guide           | Roadmap              | Contributing                |
+|:--------------------------:|:---------------------:|:--------------------:|:---------------------------:|
+| ![i1][techdocs-image]      | ![i2][setup-image]    | ![i3][roadmap-image] |![i4][contributing-image]    |
+| [Technical Docs][techdocs] | [Setup Guide][config] | [Roadmap][roadmap]   |[Contributing][contributing] |
+
 
 ## Copyright and License
 
@@ -33,12 +30,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[config]: ./config/
-[resolver]: ./config/resolver.json
-[config-docs]: https://docs.snowplowanalytics.com/docs/pipeline-components-and-applications/loaders-storage-targets/snowplow-postgres-loader/postgres-loader-configuration-reference/
-
-[docker]: https://www.docker.com/
-[iglu-server]: https://github.com/snowplow-incubator/iglu-server
+[config]: https://docs.snowplow.io/docs/pipeline-components-and-applications/loaders-storage-targets/snowplow-postgres-loader/postgres-loader-configuration-reference/
+[techdocs]: https://docs.snowplow.io/docs/pipeline-components-and-applications/loaders-storage-targets/snowplow-postgres-loader/
+[roadmap]: https://github.com/snowplow/snowplow/projects/7
+[contributing]: https://docs.snowplow.io/docs/contributing/
 
 [docker]: https://hub.docker.com/r/snowplow/snowplow-postgres-loader/tags
 [docker-image]: https://img.shields.io/docker/v/snowplow/snowplow-postgres-loader/latest
@@ -51,3 +46,8 @@ limitations under the License.
 
 [coveralls]: https://coveralls.io/github/snowplow-incubator/snowplow-postgres-loader?branch=master
 [coveralls-image]: https://coveralls.io/repos/github/snowplow-incubator/snowplow-postgres-loader/badge.svg?branch=master
+
+[techdocs-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/techdocs.png
+[setup-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/setup.png
+[roadmap-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/roadmap.png
+[contributing-image]: https://d3i6fms1cm1j0i.cloudfront.net/github/images/contributing.png

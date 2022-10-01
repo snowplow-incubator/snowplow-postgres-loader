@@ -1,3 +1,14 @@
+Version 0.3.3 (2022-09-30)
+--------------------------
+Bump apache commons-compress to 1.21 (#76)
+Bump netty-codec to 4.1.68 (#76)
+Bump protobuf-java to 3.16.1 (#76)
+Bump scala version to 2.13.9 (#76)
+Bump gson to 2.8.9 (#76)
+Exclude kafka-clients library (#76)
+Bump postgresql driver to 42.4.1 (#76)
+Bump jackson-databind to 2.12.6.1 (#76)
+
 Version 0.3.2 (2021-11-15)
 --------------------------
 Use direct executor for KPL callback (#73)
